@@ -1,0 +1,95 @@
+<Window x:Class="PlcOpcUaHmi.CommunicationConfigWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="PLC 通讯配置"
+        Height="380"
+        Width="620"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Background="#0F172A">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel>
+            <TextBlock Text="PLC / OPC UA 通讯参数" FontSize="24" FontWeight="Bold" Foreground="White"/>
+            <TextBlock Text="在这里统一设置服务器地址、端口、Endpoint 和登录方式。" Foreground="#94A3B8" Margin="0,8,0,0"/>
+        </StackPanel>
+
+        <Border Grid.Row="1" Background="#111827" BorderBrush="#1F2937" BorderThickness="1" CornerRadius="10" Padding="16" Margin="0,16,0,16">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="100"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="90"/>
+                    <ColumnDefinition Width="120"/>
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Text="服务器 IP" Foreground="#CBD5E1" VerticalAlignment="Center" Margin="0,0,8,10"/>
+                <TextBox Grid.Column="1" Text="{Binding Connection.ServerIp, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,10,10" IsEnabled="{Binding CanEditParameters}"/>
+                <TextBlock Grid.Column="2" Text="端口" Foreground="#CBD5E1" VerticalAlignment="Center" Margin="0,0,8,10"/>
+                <TextBox Grid.Column="3" Text="{Binding Connection.Port, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,10" IsEnabled="{Binding CanEditParameters}"/>
+
+                <TextBlock Grid.Row="1" Text="Endpoint" Foreground="#CBD5E1" VerticalAlignment="Center" Margin="0,0,8,10"/>
+                <TextBox Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3" Text="{Binding Connection.EndpointPath, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,10" IsEnabled="{Binding CanEditParameters}"/>
+
+                <CheckBox Grid.Row="2" Grid.ColumnSpan="2" Content="匿名连接" IsChecked="{Binding Connection.UseAnonymous}" Foreground="White" Margin="0,0,0,10" IsEnabled="{Binding CanEditParameters}"/>
+
+                <TextBlock Grid.Row="3" Text="用户名" Foreground="#CBD5E1" VerticalAlignment="Center" Margin="0,0,8,10"/>
+                <TextBox Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="3" Text="{Binding Connection.Username, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,10">
+                    <TextBox.Style>
+                        <Style TargetType="TextBox">
+                            <Setter Property="IsEnabled" Value="False"/>
+                            <Style.Triggers>
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding Connection.UseAnonymous}" Value="False"/>
+                                        <Condition Binding="{Binding CanEditParameters}" Value="True"/>
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="IsEnabled" Value="True"/>
+                                </MultiDataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBox.Style>
+                </TextBox>
+
+                <TextBlock Grid.Row="4" Text="密码" Foreground="#CBD5E1" VerticalAlignment="Center"/>
+                <PasswordBox x:Name="ConnectionPasswordBox" Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="3" PasswordChanged="ConnectionPasswordBox_PasswordChanged">
+                    <PasswordBox.Style>
+                        <Style TargetType="PasswordBox">
+                            <Setter Property="IsEnabled" Value="False"/>
+                            <Style.Triggers>
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding Connection.UseAnonymous}" Value="False"/>
+                                        <Condition Binding="{Binding CanEditParameters}" Value="True"/>
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="IsEnabled" Value="True"/>
+                                </MultiDataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </PasswordBox.Style>
+                </PasswordBox>
+            </Grid>
+        </Border>
+
+        <DockPanel Grid.Row="2">
+            <TextBlock Text="保存通讯配置后会写入 config/appsettings.json" Foreground="#94A3B8" VerticalAlignment="Center"/>
+            <WrapPanel DockPanel.Dock="Right">
+                <Button Content="加载通讯配置" Command="{Binding LoadConfigCommand}" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="12,8" Margin="0,0,8,0"/>
+                <Button Content="保存通讯配置" Command="{Binding SaveConfigCommand}" Background="#0F766E" Foreground="White" BorderBrush="#0F766E" Padding="12,8" Margin="0,0,8,0"/>
+                <Button Content="关闭" Click="CloseButton_Click" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="12,8"/>
+            </WrapPanel>
+        </DockPanel>
+    </Grid>
+</Window>

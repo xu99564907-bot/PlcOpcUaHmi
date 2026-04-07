@@ -1,0 +1,5 @@
+Name,NodeId,DataType,Category,Group,Direction,Description,IsAlarm,IsWritable
+X_Start,"ns=2;s=Channel1.Device1.X_Start",Boolean,IO,Input,Input,启动按钮,false,false
+Y_RunLamp,"ns=2;s=Channel1.Device1.Y_RunLamp",Boolean,IO,Output,Output,运行指示灯,false,true
+Axis1_Pos,"ns=2;s=Channel1.Device1.Axis1_Pos",Double,Axis,Motion,Output,1轴当前位置,false,true
+Alarm_EStop,"ns=2;s=Channel1.Device1.Alarm_EStop",Boolean,Alarm,Alarm,Input,急停报警,true,false
