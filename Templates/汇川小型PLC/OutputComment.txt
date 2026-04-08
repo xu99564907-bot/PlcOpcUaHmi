@@ -1,0 +1,7 @@
+		// 注释导入标签时请选择 Unicode 编码，以便 PLC 侧正确显示中文
+	IF Page > 0 THEN
+		CASE Page OF
+{COMMENT_CASES}
+{DEFAULT_CASE}
+		END_CASE;
+	END_IF

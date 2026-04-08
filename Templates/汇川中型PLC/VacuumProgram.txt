@@ -1,0 +1,14 @@
+FB_Vacuum_instance[{Index}](
+	iEnable:={Enable},
+	iName:= {Name},
+	iEstop:= {ControlDb}_Control.Machine.EmgSafetyRelay,
+	iReset:= {ControlDb}_Control.Mode.Out.ErrorReset,
+	iAuto:= {ControlDb}_Control.Mode.Status.AutoMode,
+	iHomeOK:= {ControlDb}_Control.Mode.Status.HomeOK,
+	iClock_100ms:= CPU_Clock.Clock_100ms_R,
+	iSensor_Work:= {Sensor},
+	iIC_Home:= {IC_Home},
+	iIC_Work:= {IC_Work},
+	ioVaccum:= {DriveDb}_DriveControl.VacCtrl[{Index}],
+	oValve_Work=> {Valve_Work},
+	oValve_Home=> {Valve_Home});

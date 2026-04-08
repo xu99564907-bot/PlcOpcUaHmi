@@ -1,0 +1,12 @@
+FB_Motor_Instance[{Index}](
+	iName:={Name},
+	iAlam:= {Alarm},
+	iEstop:= {ControlDb}_Control.Machine.EmgSafetyRelay,
+	iAuto:= {ControlDb}_Control.Mode.Status.AutoMode,
+	iReset:= {ControlDb}_Control.Mode.Out.ErrorReset,
+	iTimeDelay:= T#5S,
+	iMode:={Mode},
+	ioMotor:= {DriveDb}_DriveControl.Motor[{Index}],
+	oMotorFor=> {MotorFor},
+	oMotorBack=> {MotorBack},
+	oReset=> {Reset});

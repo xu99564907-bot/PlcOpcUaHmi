@@ -1,0 +1,4 @@
+FB_Sensor_instance[{Index}](
+	ioSensor:= {DriveDb}_DriveControl.Sensor[{Index}],
+	iSensor:={Sensor},
+	iName:={Name});

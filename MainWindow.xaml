@@ -11,7 +11,7 @@
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
         mc:Ignorable="d"
-        Title="PLC OPC UA HMI Designer" Height="1080" Width="1880" WindowStartupLocation="CenterScreen" Background="#0F172A" WindowStyle="None" ResizeMode="CanResize">
+        Title="PLC OPC UA HMI Designer" Height="1080" Width="1880" WindowStartupLocation="CenterScreen" Background="#F8FAFC" WindowStyle="None" ResizeMode="CanResize">
     <shell:WindowChrome.WindowChrome>
         <shell:WindowChrome CaptionHeight="40" ResizeBorderThickness="6" CornerRadius="0" GlassFrameThickness="0" UseAeroCaptionButtons="False"/>
     </shell:WindowChrome.WindowChrome>
@@ -21,6 +21,7 @@
         <conv:NavigationIconConverter x:Key="NavigationIconConverter"/>
         <conv:NavigationSelectionBrushConverter x:Key="NavigationSelectionBrushConverter"/>
         <conv:NavigationGroupVisibilityConverter x:Key="NavigationGroupVisibilityConverter"/>
+        <conv:CurrentSectionToNavigationWidthConverter x:Key="CurrentSectionToNavigationWidthConverter"/>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
         <Style x:Key="SparklinePathStyle" TargetType="Path">
             <Setter Property="StrokeThickness" Value="2.5"/>
@@ -29,8 +30,8 @@
         </Style>
         <Style TargetType="Border" x:Key="CardBorderStyle">
             <Setter Property="CornerRadius" Value="10"/>
-            <Setter Property="Background" Value="#111827"/>
-            <Setter Property="BorderBrush" Value="#1F2937"/>
+            <Setter Property="Background" Value="#FFFFFF"/>
+            <Setter Property="BorderBrush" Value="#D7DFEA"/>
             <Setter Property="BorderThickness" Value="1"/>
         </Style>
         <Style TargetType="Button" x:Key="PrimaryButtonStyle">
@@ -41,9 +42,9 @@
             <Setter Property="Margin" Value="0,0,8,8"/>
         </Style>
         <Style TargetType="ToggleButton" x:Key="ModeToggleButtonStyle">
-            <Setter Property="Background" Value="#374151"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="BorderBrush" Value="#4B5563"/>
+            <Setter Property="Background" Value="#E5E7EB"/>
+            <Setter Property="Foreground" Value="#0F172A"/>
+            <Setter Property="BorderBrush" Value="#CBD5E1"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="12,8"/>
             <Setter Property="Margin" Value="0,0,8,8"/>
@@ -67,78 +68,78 @@
         <Style TargetType="DataGridRow" x:Key="ParameterRowStyle">
             <Style.Triggers>
                 <DataTrigger Binding="{Binding IsReadOnly}" Value="True">
-                    <Setter Property="Background" Value="#111827"/>
-                    <Setter Property="Foreground" Value="#6B7280"/>
+            <Setter Property="Background" Value="#F8FAFC"/>
+            <Setter Property="Foreground" Value="#64748B"/>
                 </DataTrigger>
                 <DataTrigger Binding="{Binding IsReadOnly}" Value="False">
-                    <Setter Property="Background" Value="#0F1D35"/>
-                    <Setter Property="Foreground" Value="White"/>
+                    <Setter Property="Background" Value="#FFFFFF"/>
+                    <Setter Property="Foreground" Value="#0F172A"/>
                 </DataTrigger>
             </Style.Triggers>
         </Style>
         <Style TargetType="DataGridRow" x:Key="HighlightRowStyle">
-            <Setter Property="Background" Value="#111827"/>
-            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Background" Value="#FFFFFF"/>
+            <Setter Property="Foreground" Value="#0F172A"/>
             <Style.Triggers>
                 <DataTrigger Binding="{Binding IsHighlighted}" Value="True">
-                    <Setter Property="Background" Value="#3B0764"/>
-                    <Setter Property="Foreground" Value="#FFFFFF"/>
+                    <Setter Property="Background" Value="#DBEAFE"/>
+                    <Setter Property="Foreground" Value="#1D4ED8"/>
                     <Setter Property="FontWeight" Value="Bold"/>
                 </DataTrigger>
             </Style.Triggers>
         </Style>
         <Style TargetType="DataGrid">
-            <Setter Property="Background" Value="#111827"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="RowBackground" Value="#111827"/>
-            <Setter Property="AlternatingRowBackground" Value="#0F172A"/>
-            <Setter Property="HorizontalGridLinesBrush" Value="#1F2937"/>
-            <Setter Property="VerticalGridLinesBrush" Value="#1F2937"/>
-            <Setter Property="BorderBrush" Value="#1F2937"/>
+            <Setter Property="Background" Value="#FFFFFF"/>
+            <Setter Property="Foreground" Value="#0F172A"/>
+            <Setter Property="RowBackground" Value="#FFFFFF"/>
+            <Setter Property="AlternatingRowBackground" Value="#F8FAFC"/>
+            <Setter Property="HorizontalGridLinesBrush" Value="#E2E8F0"/>
+            <Setter Property="VerticalGridLinesBrush" Value="#E2E8F0"/>
+            <Setter Property="BorderBrush" Value="#D7DFEA"/>
         </Style>
         <Style TargetType="DataGridColumnHeader">
-            <Setter Property="Background" Value="#1F2937"/>
-            <Setter Property="Foreground" Value="#E5E7EB"/>
-            <Setter Property="BorderBrush" Value="#334155"/>
+            <Setter Property="Background" Value="#EFF3F8"/>
+            <Setter Property="Foreground" Value="#334155"/>
+            <Setter Property="BorderBrush" Value="#D7DFEA"/>
             <Setter Property="BorderThickness" Value="0,0,1,1"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="Padding" Value="10,8"/>
         </Style>
         <Style TargetType="DataGridCell">
             <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="BorderBrush" Value="#1F2937"/>
+            <Setter Property="Foreground" Value="#0F172A"/>
+            <Setter Property="BorderBrush" Value="#E2E8F0"/>
             <Setter Property="BorderThickness" Value="0,0,1,1"/>
             <Setter Property="Padding" Value="8,6"/>
-            <Setter Property="TextBlock.Foreground" Value="White"/>
+            <Setter Property="TextBlock.Foreground" Value="#0F172A"/>
             <Style.Triggers>
                 <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="#1D4ED8"/>
-                    <Setter Property="Foreground" Value="White"/>
+                    <Setter Property="Background" Value="#DBEAFE"/>
+                    <Setter Property="Foreground" Value="#1D4ED8"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
         <Style x:Key="DataGridEditTextBoxStyle" TargetType="TextBox">
-            <Setter Property="Background" Value="#0F172A"/>
-            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Background" Value="#FFFFFF"/>
+            <Setter Property="Foreground" Value="#0F172A"/>
             <Setter Property="BorderBrush" Value="#60A5FA"/>
-            <Setter Property="CaretBrush" Value="White"/>
+            <Setter Property="CaretBrush" Value="#0F172A"/>
             <Setter Property="Padding" Value="4,2"/>
         </Style>
         <Style x:Key="TopNavigationIconButtonStyle" TargetType="Button">
             <Setter Property="Width" Value="90"/>
             <Setter Property="Height" Value="90"/>
-            <Setter Property="BorderBrush" Value="#334155"/>
+            <Setter Property="BorderBrush" Value="#D7DFEA"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Margin" Value="5"/>
             <Setter Property="Padding" Value="0"/>
-            <Setter Property="Background" Value="#1F2937"/>
+            <Setter Property="Background" Value="#FFFFFF"/>
         </Style>
         <Style x:Key="WindowControlButtonStyle" TargetType="Button">
             <Setter Property="Width" Value="46"/>
             <Setter Property="Height" Value="32"/>
             <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Foreground" Value="#CFCFCF"/>
+            <Setter Property="Foreground" Value="#475569"/>
             <Setter Property="BorderBrush" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="FontSize" Value="14"/>
@@ -146,18 +147,18 @@
             <Setter Property="Margin" Value="0"/>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#2A2D2E"/>
-                    <Setter Property="Foreground" Value="White"/>
+                    <Setter Property="Background" Value="#E2E8F0"/>
+                    <Setter Property="Foreground" Value="#0F172A"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
-        <SolidColorBrush x:Key="VsMenuBarBrush" Color="#181818"/>
-        <SolidColorBrush x:Key="VsMenuTextBrush" Color="#CCCCCC"/>
-        <SolidColorBrush x:Key="VsMenuHoverBrush" Color="#2A2D2E"/>
-        <SolidColorBrush x:Key="VsMenuPopupBrush" Color="#252526"/>
-        <SolidColorBrush x:Key="VsMenuBorderBrush" Color="#3C3C3C"/>
-        <SolidColorBrush x:Key="VsMenuSeparatorBrush" Color="#3A3A3A"/>
-        <SolidColorBrush x:Key="VsMenuGestureBrush" Color="#A9A9A9"/>
+        <SolidColorBrush x:Key="VsMenuBarBrush" Color="#FFFFFF"/>
+        <SolidColorBrush x:Key="VsMenuTextBrush" Color="#334155"/>
+        <SolidColorBrush x:Key="VsMenuHoverBrush" Color="#EFF6FF"/>
+        <SolidColorBrush x:Key="VsMenuPopupBrush" Color="#FFFFFF"/>
+        <SolidColorBrush x:Key="VsMenuBorderBrush" Color="#D7DFEA"/>
+        <SolidColorBrush x:Key="VsMenuSeparatorBrush" Color="#E2E8F0"/>
+        <SolidColorBrush x:Key="VsMenuGestureBrush" Color="#64748B"/>
         <Style TargetType="Menu">
             <Setter Property="Background" Value="{StaticResource VsMenuBarBrush}"/>
             <Setter Property="Foreground" Value="{StaticResource VsMenuTextBrush}"/>
@@ -279,20 +280,20 @@
         <vm:MainViewModel />
     </Window.DataContext>
 
-    <Grid Background="#0B1220">
+    <Grid Background="#F3F6FB">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="36"/>
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="260"/>
+            <ColumnDefinition Width="{Binding CurrentSection, Converter={StaticResource CurrentSectionToNavigationWidthConverter}}"/>
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
-        <Border Grid.Row="0" Grid.ColumnSpan="2" Background="#111827" BorderBrush="#1F2937" BorderThickness="0,0,0,1" Padding="0">
+        <Border Grid.Row="0" Grid.ColumnSpan="2" Background="#FFFFFF" BorderBrush="#D7DFEA" BorderThickness="0,0,0,1" Padding="0">
             <DockPanel>
-                <Border DockPanel.Dock="Top" Background="#181818" BorderBrush="#2A2A2A" BorderThickness="0,0,0,1">
+                <Border DockPanel.Dock="Top" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="0,0,0,1">
                 <Grid Height="40" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
@@ -306,13 +307,17 @@
                                 <Rectangle Width="9" Height="9" Fill="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                             </Grid>
                         </Border>
-                        <TextBlock Text="PLC OPC UA HMI Designer" Foreground="#D4D4D4" VerticalAlignment="Center" FontSize="13" shell:WindowChrome.IsHitTestVisibleInChrome="True"/>
+                        <TextBlock Text="PLC OPC UA HMI Designer" Foreground="#334155" VerticalAlignment="Center" FontSize="13" shell:WindowChrome.IsHitTestVisibleInChrome="True"/>
                     </StackPanel>
                     <Menu Grid.Column="1" VerticalAlignment="Center" shell:WindowChrome.IsHitTestVisibleInChrome="True">
                         <MenuItem Header="文件">
                             <MenuItem Header="导入 XML 变量" Command="{Binding ImportXmlTagsCommand}"/>
                             <MenuItem Header="导入 CSV 变量" Command="{Binding ImportTagsCommand}"/>
+                            <MenuItem Header="导入 IO 表" Command="{Binding ImportIoTableCommand}"/>
+                        <MenuItem Header="生成手动程序" Command="{Binding GenerateIoProgramsCommand}"/>
                             <MenuItem Header="导入流程 CSV" Command="{Binding ImportFlowCsvCommand}"/>
+                            <Separator/>
+                            <MenuItem Header="打开 IO 生成目录" Command="{Binding OpenGeneratedIoFolderCommand}"/>
                             <Separator/>
                             <MenuItem Header="退出" Click="ExitMenuItem_Click"/>
                         </MenuItem>
@@ -422,10 +427,10 @@
                             <Button.Background><MultiBinding Converter="{StaticResource NavigationSelectionBrushConverter}"><Binding Path="CurrentSection"/><Binding Source="参数设定"/></MultiBinding></Button.Background>
                             <materialDesign:PackIcon Kind="Cog" Width="70" Height="70"><materialDesign:PackIcon.Foreground><MultiBinding Converter="{StaticResource NavigationSelectionBrushConverter}" ConverterParameter="Foreground"><Binding Path="CurrentSection"/><Binding Source="参数设定"/></MultiBinding></materialDesign:PackIcon.Foreground></materialDesign:PackIcon>
                         </Button>
-                        <Border Grid.Column="4" Margin="12,8" CornerRadius="14" Background="#111827" BorderBrush="#1F2937" BorderThickness="1">
+                        <Border Grid.Column="4" Margin="12,8" CornerRadius="14" Background="#FFFFFF" BorderBrush="#D7DFEA" BorderThickness="1">
                             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                                <TextBlock Text="当前界面" Foreground="#94A3B8" FontSize="12" HorizontalAlignment="Center"/>
-                                <TextBlock Text="{Binding CurrentSection}" Foreground="White" FontSize="22" FontWeight="Bold" Margin="0,6,0,0" HorizontalAlignment="Center"/>
+                                <TextBlock Text="当前界面" Foreground="#64748B" FontSize="12" HorizontalAlignment="Center"/>
+                                <TextBlock Text="{Binding CurrentSection}" Foreground="#0F172A" FontSize="22" FontWeight="Bold" Margin="0,6,0,0" HorizontalAlignment="Center"/>
                             </StackPanel>
                         </Border>
                         <Button Grid.Column="5" Style="{StaticResource TopNavigationIconButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="配方管理" ToolTip="配方管理">
@@ -449,9 +454,19 @@
             </DockPanel>
         </Border>
 
-        <Border Grid.Row="1" Grid.Column="0" Margin="12" Style="{StaticResource CardBorderStyle}" Padding="12">
+        <Border Grid.Row="1" Grid.Column="0" Margin="12" Padding="12">
+            <Border.Style>
+                <Style TargetType="Border" BasedOn="{StaticResource CardBorderStyle}">
+                    <Setter Property="Visibility" Value="Visible"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding CurrentSection}" Value="主界面">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
             <DockPanel>
-                <TextBlock DockPanel.Dock="Top" Text="子页面导航" FontSize="18" FontWeight="Bold" Foreground="White" Margin="4,0,0,12"/>
+                <TextBlock DockPanel.Dock="Top" Text="子页面导航" FontSize="18" FontWeight="Bold" Foreground="#0F172A" Margin="4,0,0,12"/>
                 <ScrollViewer VerticalScrollBarVisibility="Hidden">
                     <ItemsControl ItemsSource="{Binding NavigationItems}">
                         <ItemsControl.ItemTemplate>
@@ -473,11 +488,11 @@
                                             </Style.Triggers>
                                         </Style>
                                     </StackPanel.Style>
-                                    <TextBlock Text="{Binding Title}" Foreground="#94A3B8" FontWeight="SemiBold" Margin="4,0,0,8"/>
+                                    <TextBlock Text="{Binding Title}" Foreground="#64748B" FontWeight="SemiBold" Margin="4,0,0,8"/>
                                     <ItemsControl ItemsSource="{Binding Children}">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
-                                                <Button Content="{Binding Title}" Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding Title}" Padding="8" Margin="20,0,0,4" Background="#0F172A" Foreground="#CBD5E1" BorderBrush="#334155"/>
+                                                <Button Content="{Binding Title}" Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding Title}" Padding="8" Margin="20,0,0,4" Background="#F8FAFC" Foreground="#334155" BorderBrush="#D7DFEA"/>
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
@@ -491,65 +506,34 @@
 
         <Grid Grid.Row="1" Grid.Column="1" Margin="0,12,12,12">
             <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
-
-            <Border Grid.Row="0" Margin="0,0,0,12" Style="{StaticResource CardBorderStyle}" Padding="16">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="2*"/>
-                        <ColumnDefinition Width="3*"/>
-                        <ColumnDefinition Width="2*"/>
-                    </Grid.ColumnDefinitions>
-                    <StackPanel>
-                        <TextBlock Text="当前界面" FontSize="16" FontWeight="Bold" Foreground="#CBD5E1"/>
-                        <TextBlock Text="{Binding CurrentSection}" FontSize="28" FontWeight="Bold" Foreground="White" Margin="0,8,0,0"/>
-                    </StackPanel>
-                    <UniformGrid Grid.Column="1" Columns="5" Margin="20,0">
-                        <Border Style="{StaticResource CardBorderStyle}" Background="#111827" Padding="12" Margin="6"><StackPanel><TextBlock Text="变量总数" Foreground="#94A3B8"/><TextBlock Text="{Binding TagCount}" FontSize="24" FontWeight="Bold" Foreground="White"/></StackPanel></Border>
-                        <Border Style="{StaticResource CardBorderStyle}" Background="#111827" Padding="12" Margin="6"><StackPanel><TextBlock Text="总产量" Foreground="#94A3B8"/><TextBlock Text="{Binding ProductionCount}" FontSize="24" FontWeight="Bold" Foreground="#60A5FA"/></StackPanel></Border>
-                        <Border Style="{StaticResource CardBorderStyle}" Background="#111827" Padding="12" Margin="6"><StackPanel><TextBlock Text="稼动率 OEE" Foreground="#94A3B8"/><TextBlock Text="{Binding OeeRate, StringFormat={}{0:F1}%}" FontSize="24" FontWeight="Bold" Foreground="#22C55E"/></StackPanel></Border>
-                        <Border Style="{StaticResource CardBorderStyle}" Background="#111827" Padding="12" Margin="6"><StackPanel><TextBlock Text="活动报警" Foreground="#94A3B8"/><TextBlock Text="{Binding ActiveAlarmCount}" FontSize="24" FontWeight="Bold" Foreground="#F59E0B"/></StackPanel></Border>
-                        <Border Style="{StaticResource CardBorderStyle}" Background="#111827" Padding="12" Margin="6"><StackPanel><TextBlock Text="当前角色" Foreground="#94A3B8"/><TextBlock Text="{Binding CurrentRoleText}" FontSize="24" FontWeight="Bold" Foreground="#34D399"/></StackPanel></Border>
-                    </UniformGrid>
-                    <StackPanel Grid.Column="2">
-                        <TextBlock Text="快捷操作" FontSize="16" FontWeight="Bold" Foreground="#CBD5E1" Margin="0,0,0,8"/>
-                        <WrapPanel>
-                            <Button Content="连接" Command="{Binding ConnectCommand}" Style="{StaticResource PrimaryButtonStyle}"/>
-                            <Button Content="断开" Command="{Binding DisconnectCommand}" Background="#B91C1C" Foreground="White" BorderBrush="#B91C1C" Padding="12,8" Margin="0,0,8,8"/>
-                            <Button Content="班次清零" Command="{Binding ResetShiftCountersCommand}" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="12,8" Margin="0,0,8,8"/>
-                            <Button Content="日清零" Command="{Binding ResetDailyCountersCommand}" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="12,8" Margin="0,0,8,8"/>
-                        </WrapPanel>
-                    </StackPanel>
-                </Grid>
-            </Border>
-
-            <TabControl Grid.Row="1" Background="#111827" BorderThickness="0" Foreground="White" SelectedIndex="{Binding SelectedTabIndex, Mode=TwoWay}">
+            <TabControl Grid.Row="0" Background="#FFFFFF" BorderThickness="0" Foreground="#0F172A" SelectedIndex="{Binding SelectedTabIndex, Mode=TwoWay}">
                 <TabControl.Template>
                     <ControlTemplate TargetType="{x:Type TabControl}">
                         <ContentPresenter ContentSource="SelectedContent"/>
                     </ControlTemplate>
                 </TabControl.Template>
                 <TabItem Header="运行总览">
-                    <Grid Margin="12">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <Grid Margin="12" Width="{Binding ViewportWidth, RelativeSource={RelativeSource AncestorType=ScrollViewer}}">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
-                        <Border Grid.Row="0" Style="{StaticResource CardBorderStyle}" Background="#0F172A" Padding="16" Margin="0,0,0,12">
+                        <Border Grid.Row="0" Style="{StaticResource CardBorderStyle}" Background="#FFFFFF" Padding="16" Margin="0,0,0,12">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <StackPanel>
-                                    <TextBlock Text="{Binding RuntimeHeaderText}" FontSize="22" FontWeight="Bold" Foreground="White"/>
-                                    <TextBlock Text="运行态聚焦生产、状态、报警与重点处理信息。" Foreground="#94A3B8" Margin="0,6,0,0"/>
+                                    <TextBlock Text="{Binding RuntimeHeaderText}" FontSize="22" FontWeight="Bold" Foreground="#0F172A"/>
+                                    <TextBlock Text="运行态聚焦生产、状态、报警与重点处理信息。" Foreground="#64748B" Margin="0,6,0,0"/>
                                 </StackPanel>
                                 <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                    <Border Background="#1E293B" CornerRadius="10" Padding="14,10" Margin="0,0,10,0"><StackPanel><TextBlock Text="模式说明" Foreground="#94A3B8"/><TextBlock Text="{Binding DesignerModeText}" FontSize="18" FontWeight="Bold" Foreground="White"/></StackPanel></Border>
-                                    <Border Background="#0B3B2E" CornerRadius="10" Padding="14,10"><StackPanel><TextBlock Text="通讯状态" Foreground="#A7F3D0"/><TextBlock Text="{Binding CommunicationStatus}" FontSize="18" FontWeight="Bold" Foreground="White"/></StackPanel></Border>
+                                    <Border Background="#EEF2FF" BorderBrush="#C7D2FE" BorderThickness="1" CornerRadius="10" Padding="14,10" Margin="0,0,10,0"><StackPanel><TextBlock Text="模式说明" Foreground="#6366F1"/><TextBlock Text="{Binding DesignerModeText}" FontSize="18" FontWeight="Bold" Foreground="#3730A3"/></StackPanel></Border>
+                                    <Border Background="#ECFDF5" BorderBrush="#A7F3D0" BorderThickness="1" CornerRadius="10" Padding="14,10"><StackPanel><TextBlock Text="通讯状态" Foreground="#059669"/><TextBlock Text="{Binding CommunicationStatus}" FontSize="18" FontWeight="Bold" Foreground="#047857"/></StackPanel></Border>
                                 </StackPanel>
                             </Grid>
                         </Border>
@@ -557,87 +541,143 @@
                             <Grid.ColumnDefinitions><ColumnDefinition Width="2.2*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                             <Grid Grid.Column="0" Margin="0,0,10,0">
                                 <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-                                <Border Grid.Row="0" Style="{StaticResource CardBorderStyle}" Background="#0B1324" Padding="16" Margin="0,0,0,10">
+                                <Border Grid.Row="0" Style="{StaticResource CardBorderStyle}" Background="#FFFFFF" Padding="16" Margin="0,0,0,10">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
-                                        <StackPanel><TextBlock Text="生产状态" Foreground="#94A3B8"/><TextBlock Text="{Binding DeviceStatusText}" FontSize="22" FontWeight="Bold" Foreground="White"/></StackPanel>
-                                        <StackPanel Grid.Column="1"><TextBlock Text="生产计数" Foreground="#94A3B8"/><TextBlock Text="{Binding ProductionCount}" FontSize="22" FontWeight="Bold" Foreground="White"/></StackPanel>
-                                        <StackPanel Grid.Column="2"><TextBlock Text="稼动率 OEE" Foreground="#94A3B8"/><TextBlock Text="{Binding OeeRate, StringFormat={}{0:F1}%}" FontSize="22" FontWeight="Bold" Foreground="#22C55E"/></StackPanel>
-                                        <StackPanel Grid.Column="3"><TextBlock Text="设备状态" Foreground="#94A3B8"/><TextBlock Text="{Binding AxisStatusText}" FontSize="18" FontWeight="Bold" Foreground="White" TextWrapping="Wrap"/></StackPanel>
-                                        <StackPanel Grid.Column="4"><TextBlock Text="活动报警" Foreground="#94A3B8"/><TextBlock Text="{Binding ActiveAlarmCount}" FontSize="22" FontWeight="Bold" Foreground="#F59E0B"/></StackPanel>
-                                        <StackPanel Grid.Column="5"><TextBlock Text="未确认报警" Foreground="#94A3B8"/><TextBlock Text="{Binding UnacknowledgedAlarmCount}" FontSize="22" FontWeight="Bold" Foreground="#F87171"/></StackPanel>
+                                        <StackPanel><TextBlock Text="生产状态" Foreground="#64748B"/><TextBlock Text="{Binding DeviceStatusText}" FontSize="22" FontWeight="Bold" Foreground="#0F172A"/></StackPanel>
+                                        <StackPanel Grid.Column="1"><TextBlock Text="生产计数" Foreground="#64748B"/><TextBlock Text="{Binding ProductionCount}" FontSize="22" FontWeight="Bold" Foreground="#0F172A"/></StackPanel>
+                                        <StackPanel Grid.Column="2"><TextBlock Text="稼动率 OEE" Foreground="#64748B"/><TextBlock Text="{Binding OeeRate, StringFormat={}{0:F1}%}" FontSize="22" FontWeight="Bold" Foreground="#16A34A"/></StackPanel>
+                                        <StackPanel Grid.Column="3"><TextBlock Text="设备状态" Foreground="#64748B"/><TextBlock Text="{Binding AxisStatusText}" FontSize="18" FontWeight="Bold" Foreground="#0F172A" TextWrapping="Wrap"/></StackPanel>
+                                        <StackPanel Grid.Column="4"><TextBlock Text="活动报警" Foreground="#64748B"/><TextBlock Text="{Binding ActiveAlarmCount}" FontSize="22" FontWeight="Bold" Foreground="#D97706"/></StackPanel>
+                                        <StackPanel Grid.Column="5"><TextBlock Text="未确认报警" Foreground="#64748B"/><TextBlock Text="{Binding UnacknowledgedAlarmCount}" FontSize="22" FontWeight="Bold" Foreground="#DC2626"/></StackPanel>
                                     </Grid>
                                 </Border>
                                 <Border Grid.Row="1" Style="{StaticResource CardBorderStyle}" Padding="16">
                                     <Grid>
-                                        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="*"/>
+                                        </Grid.RowDefinitions>
                                         <DockPanel Margin="0,0,0,12">
-                                            <TextBlock Text="正式运行页" FontSize="20" FontWeight="Bold" Foreground="White"/>
-                                            <TextBlock DockPanel.Dock="Right" Text="设备总览 / 生产 KPI / 重点报警" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                                            <TextBlock Text="正式运行页" FontSize="20" FontWeight="Bold" Foreground="#0F172A"/>
+                                            <TextBlock DockPanel.Dock="Right" Text="设备总览 / 生产 KPI / 重点报警" Foreground="#64748B" VerticalAlignment="Center"/>
                                         </DockPanel>
                                         <Grid Grid.Row="1" Margin="0,0,0,12">
-                                            <Grid.ColumnDefinitions><ColumnDefinition Width="2*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <Border Style="{StaticResource CardBorderStyle}" Background="#0B1324" Padding="14" Margin="0,0,10,0"><StackPanel><TextBlock Text="产线主控区" Foreground="#94A3B8"/><TextBlock Text="当前重点设备、工单与生产目标摘要" FontSize="18" FontWeight="Bold" Foreground="White" Margin="0,4,0,10"/><WrapPanel><Button Content="进入手动画面" Command="{Binding NavigateCommand}" CommandParameter="手动操作" Style="{StaticResource PrimaryButtonStyle}"/><Button Content="进入报警画面" Command="{Binding NavigateCommand}" CommandParameter="报警画面" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="12,8" Margin="0,0,8,8"/><Button Content="刷新现场状态" Command="{Binding RefreshTagsCommand}" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="12,8" Margin="0,0,8,8"/></WrapPanel><Separator Margin="0,8,0,8"/><TextBlock Text="运行控制" FontSize="16" FontWeight="Bold" Foreground="White" Margin="0,0,0,8"/><WrapPanel><primitives:ToggleButton Content="调试模式" IsChecked="{Binding IsDebugMode, Mode=OneWay}" Command="{Binding SetDebugModeCommand}" Style="{StaticResource ModeToggleButtonStyle}"/><primitives:ToggleButton Content="空跑模式" IsChecked="{Binding IsDryRunMode, Mode=OneWay}" Command="{Binding SetDryRunModeCommand}" Style="{StaticResource ModeToggleButtonStyle}"/><primitives:ToggleButton Content="过站模式" IsChecked="{Binding IsBypassStationMode, Mode=OneWay}" Command="{Binding SetBypassStationModeCommand}" Style="{StaticResource ModeToggleButtonStyle}"/><primitives:ToggleButton Content="人工模式" IsChecked="{Binding IsManualMode, Mode=OneWay}" Command="{Binding SetManualModeCommand}" Style="{StaticResource ModeToggleButtonStyle}"/><primitives:ToggleButton Content="自动模式" IsChecked="{Binding IsAutoMode, Mode=OneWay}" Command="{Binding SetAutoModeCommand}" Style="{StaticResource ModeToggleButtonStyle}"/></WrapPanel><WrapPanel Margin="0,6,0,0"><Button x:Name="StartDeviceButton" Content="长按启动" PreviewMouseLeftButtonDown="StartDeviceButton_PreviewMouseLeftButtonDown" PreviewMouseLeftButtonUp="StartDeviceButton_PreviewMouseLeftButtonUp" MouseLeave="StartDeviceButton_PreviewMouseLeftButtonUp" Background="#2563EB" Foreground="White" BorderBrush="#60A5FA" BorderThickness="2" Padding="12,8"/><Button Content="立即停止" Command="{Binding StopDeviceCommand}" Style="{StaticResource EmergencyStopButtonStyle}"/><Button Content="报警复位" Command="{Binding ResetAlarmFromHomeCommand}" Background="#B91C1C" Foreground="White" BorderBrush="#B91C1C" Padding="12,8"/></WrapPanel><ProgressBar Value="{Binding StartHoldProgress}" Maximum="100" Height="10" Margin="0,8,0,0" Foreground="#60A5FA" Background="#1E293B"/><TextBlock Text="启动按钮需长按 1 秒生效；停止按钮点击即刻生效。" Foreground="#94A3B8" Margin="0,8,0,0"/><UniformGrid Columns="3" Margin="0,8,0,0"><Border Background="#0F172A" CornerRadius="8" Padding="10,6" Margin="0,0,6,0"><StackPanel><TextBlock Text="模式就绪" Foreground="#94A3B8" FontSize="12"/><TextBlock Text="{Binding StartModeReady}" Foreground="#22C55E" FontWeight="Bold"/></StackPanel></Border><Border Background="#0F172A" CornerRadius="8" Padding="10,6" Margin="3,0"><StackPanel><TextBlock Text="报警清除" Foreground="#94A3B8" FontSize="12"/><TextBlock Text="{Binding StartAlarmReady}" Foreground="#22C55E" FontWeight="Bold"/></StackPanel></Border><Border Background="#0F172A" CornerRadius="8" Padding="10,6" Margin="6,0,0,0"><StackPanel><TextBlock Text="联锁就绪" Foreground="#94A3B8" FontSize="12"/><TextBlock Text="{Binding StartInterlockReady}" Foreground="#22C55E" FontWeight="Bold"/></StackPanel></Border></UniformGrid><Border Background="#1E3A8A" CornerRadius="8" Padding="10,6" Margin="0,8,0,0"><TextBlock Text="{Binding RunModeSummary, StringFormat=当前运行模式：{0}}" Foreground="White"/></Border><Border Background="#065F46" CornerRadius="8" Padding="10,6" Margin="0,6,0,0"><TextBlock Text="{Binding StartStopSummary}" Foreground="White"/></Border></StackPanel></Border>
-                                            <Border Grid.Column="1" Style="{StaticResource CardBorderStyle}" Background="#0B1324" Padding="14"><StackPanel><TextBlock Text="重点报警" Foreground="#94A3B8"/><TextBlock Text="{Binding FocusAlarmHint}" FontSize="18" FontWeight="Bold" Foreground="#FCA5A5" TextWrapping="Wrap"/><TextBlock Text="{Binding EstimatedDowntimeMinutes, StringFormat=预计停机：{0:F1} min}" Foreground="#FCD34D" Margin="0,10,0,4"/><TextBlock Text="{Binding EstimatedProductionLoss, StringFormat=预计影响产量：{0}}" Foreground="#FCA5A5"/><TextBlock Text="依据报警次数、当前激活状态与影响估算自动排序" Foreground="#CBD5E1" Margin="0,10,0,0" TextWrapping="Wrap"/></StackPanel></Border>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="1.5*"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource CardBorderStyle}" Background="#FFFFFF" Padding="14" Margin="0,0,10,0">
+                                                <StackPanel>
+                                                    <TextBlock Text="产线主控区" Foreground="#64748B"/>
+                                                    <TextBlock Text="保留常用操作，避免运行页堆叠过多控制项。" FontSize="16" FontWeight="Bold" Foreground="#0F172A" Margin="0,4,0,12"/>
+                                                    <WrapPanel Margin="0,0,0,8">
+                                                        <Button Content="进入手动画面" Command="{Binding NavigateCommand}" CommandParameter="手动操作" Style="{StaticResource PrimaryButtonStyle}"/>
+                                                        <Button Content="进入报警画面" Command="{Binding NavigateCommand}" CommandParameter="报警画面" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="12,8" Margin="0,0,8,8"/>
+                                                        <Button Content="刷新现场状态" Command="{Binding RefreshTagsCommand}" Background="#E2E8F0" Foreground="#0F172A" BorderBrush="#CBD5E1" Padding="12,8" Margin="0,0,8,8"/>
+                                                    </WrapPanel>
+                                                    <TextBlock Text="运行模式" FontSize="16" FontWeight="Bold" Foreground="#0F172A" Margin="0,4,0,8"/>
+                                                    <WrapPanel Margin="0,0,0,8">
+                                                        <primitives:ToggleButton Content="调试模式" IsChecked="{Binding IsDebugMode, Mode=OneWay}" Command="{Binding SetDebugModeCommand}" Style="{StaticResource ModeToggleButtonStyle}"/>
+                                                        <primitives:ToggleButton Content="空跑模式" IsChecked="{Binding IsDryRunMode, Mode=OneWay}" Command="{Binding SetDryRunModeCommand}" Style="{StaticResource ModeToggleButtonStyle}"/>
+                                                        <primitives:ToggleButton Content="过站模式" IsChecked="{Binding IsBypassStationMode, Mode=OneWay}" Command="{Binding SetBypassStationModeCommand}" Style="{StaticResource ModeToggleButtonStyle}"/>
+                                                        <primitives:ToggleButton Content="人工模式" IsChecked="{Binding IsManualMode, Mode=OneWay}" Command="{Binding SetManualModeCommand}" Style="{StaticResource ModeToggleButtonStyle}"/>
+                                                        <primitives:ToggleButton Content="自动模式" IsChecked="{Binding IsAutoMode, Mode=OneWay}" Command="{Binding SetAutoModeCommand}" Style="{StaticResource ModeToggleButtonStyle}"/>
+                                                    </WrapPanel>
+                                                    <TextBlock Text="运行操作" FontSize="16" FontWeight="Bold" Foreground="#0F172A" Margin="0,4,0,8"/>
+                                                    <WrapPanel>
+                                                        <Button x:Name="StartDeviceButton" Content="长按启动" Width="116" Height="38" Margin="0,0,8,8" PreviewMouseLeftButtonDown="StartDeviceButton_PreviewMouseLeftButtonDown" PreviewMouseLeftButtonUp="StartDeviceButton_PreviewMouseLeftButtonUp" MouseLeave="StartDeviceButton_PreviewMouseLeftButtonUp" Background="#2563EB" Foreground="White" BorderBrush="#60A5FA" BorderThickness="1.5"/>
+                                                        <Button Content="立即停止" Width="116" Height="38" Margin="0,0,8,8" Command="{Binding StopDeviceCommand}" Background="#DC2626" Foreground="White" BorderBrush="#FCA5A5" BorderThickness="1.5"/>
+                                                        <Button Content="报警复位" Width="116" Height="38" Margin="0,0,8,8" Command="{Binding ResetAlarmFromHomeCommand}" Background="#D97706" Foreground="White" BorderBrush="#FCD34D" BorderThickness="1.5"/>
+                                                    </WrapPanel>
+                                                    <ProgressBar Value="{Binding StartHoldProgress}" Maximum="100" Height="10" Margin="0,8,0,0" Foreground="#60A5FA" Background="#E2E8F0"/>
+                                                    <TextBlock Text="启动按钮需长按 1 秒生效；停止按钮点击即刻生效。" Foreground="#64748B" Margin="0,8,0,0"/>
+                                                    <UniformGrid Columns="3" Margin="0,10,0,0">
+                                                        <Border Background="#F8FAFC" BorderBrush="#D7DFEA" BorderThickness="1" CornerRadius="8" Padding="10,6" Margin="0,0,6,0"><StackPanel><TextBlock Text="模式就绪" Foreground="#64748B" FontSize="12"/><TextBlock Text="{Binding StartModeReady}" Foreground="#16A34A" FontWeight="Bold"/></StackPanel></Border>
+                                                        <Border Background="#F8FAFC" BorderBrush="#D7DFEA" BorderThickness="1" CornerRadius="8" Padding="10,6" Margin="3,0"><StackPanel><TextBlock Text="报警清除" Foreground="#64748B" FontSize="12"/><TextBlock Text="{Binding StartAlarmReady}" Foreground="#16A34A" FontWeight="Bold"/></StackPanel></Border>
+                                                        <Border Background="#F8FAFC" BorderBrush="#D7DFEA" BorderThickness="1" CornerRadius="8" Padding="10,6" Margin="6,0,0,0"><StackPanel><TextBlock Text="联锁就绪" Foreground="#64748B" FontSize="12"/><TextBlock Text="{Binding StartInterlockReady}" Foreground="#16A34A" FontWeight="Bold"/></StackPanel></Border>
+                                                    </UniformGrid>
+                                                </StackPanel>
+                                            </Border>
+                                            <Border Grid.Column="1" Style="{StaticResource CardBorderStyle}" Background="#FFFFFF" Padding="14">
+                                                <StackPanel>
+                                                    <TextBlock Text="重点报警" Foreground="#64748B"/>
+                                                    <TextBlock Text="{Binding FocusAlarmHint}" FontSize="18" FontWeight="Bold" Foreground="#DC2626" TextWrapping="Wrap"/>
+                                                    <TextBlock Text="{Binding EstimatedDowntimeMinutes, StringFormat=预计停机：{0:F1} min}" Foreground="#D97706" Margin="0,10,0,4"/>
+                                                    <TextBlock Text="{Binding EstimatedProductionLoss, StringFormat=预计影响产量：{0}}" Foreground="#DC2626"/>
+                                                    <Border Background="#EFF6FF" BorderBrush="#BFDBFE" BorderThickness="1" CornerRadius="8" Padding="10,8" Margin="0,12,0,0">
+                                                        <TextBlock Text="{Binding RunModeSummary, StringFormat=当前运行模式：{0}}" Foreground="#1D4ED8"/>
+                                                    </Border>
+                                                    <Border Background="#ECFDF5" BorderBrush="#A7F3D0" BorderThickness="1" CornerRadius="8" Padding="10,8" Margin="0,8,0,0">
+                                                        <TextBlock Text="{Binding StartStopSummary}" Foreground="#047857"/>
+                                                    </Border>
+                                                </StackPanel>
+                                            </Border>
                                         </Grid>
-                                        <UniformGrid Grid.Row="2" Columns="4">
-                                            <Border Background="#1D4ED8" CornerRadius="10" Padding="16" Margin="6"><StackPanel><TextBlock Text="电机" Foreground="White" FontSize="18" FontWeight="Bold"/><TextBlock Text="{Binding MotorStatusText}" Foreground="#DBEAFE" Margin="0,6,0,0"/><ProgressBar Value="70" Maximum="100" Height="8" Margin="0,10,0,0" Background="#1E3A8A" Foreground="#BFDBFE"/><TextBlock Text="具备运行 / 故障复位占位" Foreground="#BFDBFE" Margin="0,10,0,0" FontSize="12"/></StackPanel></Border>
-                                            <Border Background="#059669" CornerRadius="10" Padding="16" Margin="6"><StackPanel><TextBlock Text="气缸" Foreground="White" FontSize="18" FontWeight="Bold"/><TextBlock Text="{Binding CylinderStatusText}" Foreground="#D1FAE5" Margin="0,6,0,0"/><TextBlock Text="前到位 / 后到位实时反馈" Foreground="#A7F3D0" Margin="0,10,0,0" FontSize="12"/></StackPanel></Border>
-                                            <Border Background="#DB2777" CornerRadius="10" Padding="16" Margin="6"><StackPanel><TextBlock Text="机械手" Foreground="White" FontSize="18" FontWeight="Bold"/><TextBlock Text="{Binding RobotStatusText}" Foreground="#FCE7F3" Margin="0,6,0,0"/><TextBlock Text="支持运行 / 暂停 / 复位占位" Foreground="#FBCFE8" Margin="0,10,0,0" FontSize="12"/></StackPanel></Border>
-                                            <Border Background="#D97706" CornerRadius="10" Padding="16" Margin="6"><StackPanel><TextBlock Text="挡停" Foreground="White" FontSize="18" FontWeight="Bold"/><TextBlock Text="{Binding Tags[5].CurrentValue}" Foreground="#FEF3C7" Margin="0,6,0,0"/><TextBlock Text="运行页保留快速入口" Foreground="#FDE68A" Margin="0,10,0,0" FontSize="12"/></StackPanel></Border>
-                                            <Border Background="#7C3AED" CornerRadius="10" Padding="16" Margin="6"><StackPanel><TextBlock Text="轴控制" Foreground="White" FontSize="18" FontWeight="Bold"/><TextBlock Text="{Binding AxisStatusText}" Foreground="#EDE9FE" Margin="0,6,0,0" TextWrapping="Wrap"/><TextBlock Text="支持使能 / 报警 / 定位" Foreground="#DDD6FE" Margin="0,10,0,0" FontSize="12"/></StackPanel></Border>
-                                            <Border Background="#0F766E" CornerRadius="10" Padding="16" Margin="6"><StackPanel><TextBlock Text="生产计数" Foreground="White" FontSize="18" FontWeight="Bold"/><TextBlock Text="{Binding ProductionCount}" Foreground="#CCFBF1" Margin="0,6,0,0" FontSize="24" FontWeight="Bold"/><TextBlock Text="{Binding GoodCount, StringFormat=良品：{0}}" Foreground="#99F6E4" Margin="0,10,0,0" FontSize="12"/><TextBlock Text="{Binding NgCount, StringFormat=NG：{0}}" Foreground="#99F6E4" FontSize="12"/></StackPanel></Border>
-                                            <Border Background="#166534" CornerRadius="10" Padding="16" Margin="6"><StackPanel><TextBlock Text="稼动率" Foreground="White" FontSize="18" FontWeight="Bold"/><TextBlock Text="{Binding OeeRate, StringFormat={}{0:F1}%}" Foreground="#DCFCE7" Margin="0,6,0,0" FontSize="24" FontWeight="Bold"/><TextBlock Text="{Binding AvailabilityRate, StringFormat=A：{0:F1}%}" Foreground="#BBF7D0" Margin="0,10,0,0" FontSize="12"/><TextBlock Text="{Binding PerformanceRate, StringFormat=P：{0:F1}%}" Foreground="#BBF7D0" FontSize="12"/><TextBlock Text="{Binding QualityRate, StringFormat=Q：{0:F1}%}" Foreground="#BBF7D0" FontSize="12"/></StackPanel></Border>
-                                            <Border Background="#B91C1C" CornerRadius="10" Padding="16" Margin="6"><StackPanel><TextBlock Text="运行日志" Foreground="White" FontSize="18" FontWeight="Bold"/><TextBlock Text="{Binding Logs[0].Message}" Foreground="#FEE2E2" Margin="0,6,0,0" TextWrapping="Wrap"/><TextBlock Text="最近一条系统日志" Foreground="#FECACA" Margin="0,10,0,0" FontSize="12"/></StackPanel></Border>
-                                        </UniformGrid>
                                     </Grid>
                                 </Border>
                             </Grid>
                             <Border Grid.Column="1" Style="{StaticResource CardBorderStyle}" Padding="16">
                                 <StackPanel>
-                                    <TextBlock Text="运行页摘要" FontSize="20" FontWeight="Bold" Foreground="White" Margin="0,0,0,12"/>
-                                    <Border Background="#0B1324" CornerRadius="10" Padding="12" Margin="0,0,0,12"><StackPanel><TextBlock Text="自动流程状态" Foreground="#94A3B8"/><TextBlock Text="{Binding CurrentFlowStepText}" Foreground="#60A5FA" FontSize="22" FontWeight="Bold" Margin="0,6,0,0"/><TextBlock Text="{Binding CurrentFlowComment}" Foreground="White" TextWrapping="Wrap" Margin="0,6,0,0"/></StackPanel></Border>
-                                    <Border Background="#111827" CornerRadius="10" Padding="12" Margin="0,0,0,12"><StackPanel><TextBlock Text="动作流程日志" Foreground="#94A3B8" Margin="0,0,0,8"/><DataGrid ItemsSource="{Binding FlowStepsView}" AutoGenerateColumns="False" Height="260" Background="#0F172A" Foreground="White" BorderBrush="#1F2937" RowStyle="{StaticResource HighlightRowStyle}"><DataGrid.Columns><DataGridTextColumn Header="流程" Binding="{Binding FlowName}" Width="*"/><DataGridTextColumn Header="时间" Binding="{Binding Time}" Width="*"/><DataGridTextColumn Header="图标" Binding="{Binding Icon}" Width="*"/><DataGridTextColumn Header="步号" Binding="{Binding StepNo}" Width="*"/><DataGridTextColumn Header="动作" Binding="{Binding Title}" Width="*"/><DataGridTextColumn Header="运行注释" Binding="{Binding Comment}" Width="2*"/><DataGridTextColumn Header="耗时(s)" Binding="{Binding DurationSeconds}" Width="*"/><DataGridTextColumn Header="结果" Binding="{Binding Result}" Width="*"/><DataGridTextColumn Header="关联报警" Binding="{Binding RelatedAlarm}" Width="2*"/></DataGrid.Columns></DataGrid></StackPanel></Border>
-                                    <TextBlock Text="生产计数支持班次 / 日维度。" Foreground="#CBD5E1" Margin="0,0,0,8"/>
-                                    <TextBlock Text="OEE 按运行时间、节拍、良率计算。" Foreground="#CBD5E1" Margin="0,0,0,8"/>
-                                    <TextBlock Text="自动流程日志实时更新，便于异常分析。" Foreground="#CBD5E1" Margin="0,0,0,8"/>
-                                    <TextBlock Text="报警支持分类筛选和重点排行。" Foreground="#CBD5E1" Margin="0,0,0,8"/>
+                                    <TextBlock Text="运行页摘要" FontSize="20" FontWeight="Bold" Foreground="#0F172A" Margin="0,0,0,12"/>
+                                    <Border Background="#FFFFFF" BorderBrush="#D7DFEA" BorderThickness="1" CornerRadius="10" Padding="12" Margin="0,0,0,12"><StackPanel><TextBlock Text="自动流程状态" Foreground="#64748B"/><TextBlock Text="{Binding CurrentFlowStepText}" Foreground="#2563EB" FontSize="22" FontWeight="Bold" Margin="0,6,0,0"/><TextBlock Text="{Binding CurrentFlowComment}" Foreground="#334155" TextWrapping="Wrap" Margin="0,6,0,0"/></StackPanel></Border>
+                                    <Border Background="#FFFFFF" BorderBrush="#D7DFEA" BorderThickness="1" CornerRadius="10" Padding="12" Margin="0,0,0,12">
+                                        <StackPanel>
+                                            <TextBlock Text="动作流程日志" Foreground="#64748B" Margin="0,0,0,8"/>
+                                            <ListBox ItemsSource="{Binding FlowStepsView}" Height="320" BorderThickness="0" Background="Transparent">
+                                                <ListBox.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Border BorderBrush="#E5E7EB" BorderThickness="0,0,0,1" Padding="0,5">
+                                                            <TextBlock FontSize="12" Foreground="#334155" TextWrapping="Wrap">
+                                                                <Run Text="{Binding Time, StringFormat={}{0:HH:mm:ss}}"/>
+                                                                <Run Text="  "/>
+                                                                <Run Text="{Binding Comment}"/>
+                                                            </TextBlock>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ListBox.ItemTemplate>
+                                            </ListBox>
+                                        </StackPanel>
+                                    </Border>
                                 </StackPanel>
                             </Border>
                         </Grid>
                     </Grid>
+                    </ScrollViewer>
                 </TabItem>
 
                 <TabItem Header="监视画面">
-                    <Grid Margin="12">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <Grid Margin="12" Width="{Binding ViewportWidth, RelativeSource={RelativeSource AncestorType=ScrollViewer}}">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="1.2*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                         <Border Grid.Column="0" Grid.ColumnSpan="2" Style="{StaticResource CardBorderStyle}" Padding="16" Visibility="{Binding IsMonitorProductionPageVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
                             <StackPanel>
-                                <TextBlock Text="详细生产数据" FontSize="20" FontWeight="Bold" Foreground="White" Margin="0,0,0,12"/>
+                                <TextBlock Text="详细生产数据" FontSize="20" FontWeight="Bold" Foreground="#0F172A" Margin="0,0,0,12"/>
                                 <WrapPanel Margin="0,0,0,12">
-                                    <TextBlock Text="监视分类：" Foreground="#CBD5E1" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                    <TextBlock Text="监视分类：" Foreground="#475569" VerticalAlignment="Center" Margin="0,0,8,0"/>
                                     <ComboBox Width="140" ItemsSource="{Binding MonitorCategoryOptions}" SelectedItem="{Binding SelectedMonitorCategory}" Margin="0,0,12,0"/>
-                                    <TextBlock Text="流程：" Foreground="#CBD5E1" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                    <TextBlock Text="流程：" Foreground="#475569" VerticalAlignment="Center" Margin="0,0,8,0"/>
                                     <ComboBox Width="120" ItemsSource="{Binding FlowFilterOptions}" SelectedItem="{Binding SelectedFlowFilter}" Margin="0,0,12,0"/>
-                                    <TextBlock Text="步号：" Foreground="#CBD5E1" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                    <TextBlock Text="步号：" Foreground="#475569" VerticalAlignment="Center" Margin="0,0,8,0"/>
                                     <ComboBox Width="90" ItemsSource="{Binding FlowStepFilterOptions}" SelectedItem="{Binding SelectedFlowStepFilter}" Margin="0,0,12,0"/>
-                                    <TextBlock Text="时间：" Foreground="#CBD5E1" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                    <TextBlock Text="时间：" Foreground="#475569" VerticalAlignment="Center" Margin="0,0,8,0"/>
                                     <ComboBox Width="120" ItemsSource="{Binding FlowTimeRangeOptions}" SelectedItem="{Binding SelectedFlowTimeRange}" Margin="0,0,12,0"/>
-                                    <CheckBox Content="仅异常" IsChecked="{Binding ShowOnlyAbnormalFlow}" Foreground="White" VerticalAlignment="Center" Margin="0,0,12,0"/>
-                                    <Button Content="刷新视图" Command="{Binding RefreshTagsCommand}" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="12,8" Margin="0,0,8,0"/>
-                                    <Button Content="加载历史趋势" Command="{Binding LoadTrendHistoryCommand}" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="12,8" Margin="0,0,8,0"/>
+                                    <CheckBox Content="仅异常" IsChecked="{Binding ShowOnlyAbnormalFlow}" Foreground="#0F172A" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                    <Button Content="刷新视图" Command="{Binding RefreshTagsCommand}" Background="#E2E8F0" Foreground="#0F172A" BorderBrush="#CBD5E1" Padding="12,8" Margin="0,0,8,0"/>
+                                    <Button Content="加载历史趋势" Command="{Binding LoadTrendHistoryCommand}" Background="#E2E8F0" Foreground="#0F172A" BorderBrush="#CBD5E1" Padding="12,8" Margin="0,0,8,0"/>
                                     <Button Content="导入流程CSV分析" Command="{Binding ImportFlowCsvCommand}" Background="#0F766E" Foreground="White" BorderBrush="#0F766E" Padding="12,8"/>
                                 </WrapPanel>
                                 <UniformGrid Columns="2" Margin="0,0,0,12">
-                                    <Border Style="{StaticResource CardBorderStyle}" Background="#0F172A" Padding="12" Margin="0,0,8,8"><StackPanel><TextBlock Text="工单号" Foreground="#94A3B8"/><TextBlock Text="{Binding CurrentOrderText}" FontSize="20" FontWeight="Bold" Foreground="White"/></StackPanel></Border>
-                                    <Border Style="{StaticResource CardBorderStyle}" Background="#0F172A" Padding="12" Margin="8,0,0,8"><StackPanel><TextBlock Text="配方" Foreground="#94A3B8"/><TextBlock Text="{Binding CurrentRecipeText}" FontSize="20" FontWeight="Bold" Foreground="White"/></StackPanel></Border>
-                                    <Border Style="{StaticResource CardBorderStyle}" Background="#0F172A" Padding="12" Margin="0,0,8,8"><StackPanel><TextBlock Text="班次状态" Foreground="#94A3B8"/><TextBlock Text="{Binding ShiftStatusText}" FontSize="20" FontWeight="Bold" Foreground="White"/></StackPanel></Border>
-                                    <Border Style="{StaticResource CardBorderStyle}" Background="#0F172A" Padding="12" Margin="8,0,0,8"><StackPanel><TextBlock Text="目标产量" Foreground="#94A3B8"/><TextBlock Text="{Binding TargetCount}" FontSize="20" FontWeight="Bold" Foreground="White"/></StackPanel></Border>
+                                <Border Style="{StaticResource CardBorderStyle}" Background="#FFFFFF" Padding="12" Margin="0,0,8,8"><StackPanel><TextBlock Text="工单号" Foreground="#64748B"/><TextBlock Text="{Binding CurrentOrderText}" FontSize="20" FontWeight="Bold" Foreground="#0F172A"/></StackPanel></Border>
+                                <Border Style="{StaticResource CardBorderStyle}" Background="#FFFFFF" Padding="12" Margin="8,0,0,8"><StackPanel><TextBlock Text="配方" Foreground="#64748B"/><TextBlock Text="{Binding CurrentRecipeText}" FontSize="20" FontWeight="Bold" Foreground="#0F172A"/></StackPanel></Border>
+                                <Border Style="{StaticResource CardBorderStyle}" Background="#FFFFFF" Padding="12" Margin="0,0,8,8"><StackPanel><TextBlock Text="班次状态" Foreground="#64748B"/><TextBlock Text="{Binding ShiftStatusText}" FontSize="20" FontWeight="Bold" Foreground="#0F172A"/></StackPanel></Border>
+                                <Border Style="{StaticResource CardBorderStyle}" Background="#FFFFFF" Padding="12" Margin="8,0,0,8"><StackPanel><TextBlock Text="目标产量" Foreground="#64748B"/><TextBlock Text="{Binding TargetCount}" FontSize="20" FontWeight="Bold" Foreground="#0F172A"/></StackPanel></Border>
                                 </UniformGrid>
-                                <Border Style="{StaticResource CardBorderStyle}" Background="#0B1324" Padding="12" Margin="0,0,0,12"><StackPanel><TextBlock Text="历史趋势落盘状态" FontSize="16" FontWeight="Bold" Foreground="White"/><TextBlock Text="系统每次刷新时会自动将 OEE / 产量 / 报警数追加写入 trend-history.csv。" Foreground="#CBD5E1" Margin="0,8,0,0" TextWrapping="Wrap"/></StackPanel></Border>
+                                <Border Style="{StaticResource CardBorderStyle}" Background="#FFFFFF" Padding="12" Margin="0,0,0,12"><StackPanel><TextBlock Text="历史趋势落盘状态" FontSize="16" FontWeight="Bold" Foreground="#0F172A"/><TextBlock Text="系统每次刷新时会自动将 OEE / 产量 / 报警数追加写入 trend-history.csv。" Foreground="#475569" Margin="0,8,0,0" TextWrapping="Wrap"/></StackPanel></Border>
                                 <Grid Margin="0,12,0,0">
                                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
@@ -650,16 +690,17 @@
                         </Border>
                         <Border Grid.Column="0" Grid.ColumnSpan="2" Style="{StaticResource CardBorderStyle}" Padding="16" Visibility="{Binding IsMonitorSinglePanelPageVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
                             <StackPanel>
-                                <TextBlock Text="{Binding CurrentMonitorTitle}" FontSize="20" FontWeight="Bold" Foreground="White" Margin="0,0,0,12"/>
-                                <DataGrid ItemsSource="{Binding MonitorTagsView}" AutoGenerateColumns="False" IsReadOnly="True" Background="#111827" Foreground="White" BorderBrush="#1F2937" Margin="0,0,0,12" Visibility="{Binding IsMonitorIoPageVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <TextBlock Text="{Binding CurrentMonitorTitle}" FontSize="20" FontWeight="Bold" Foreground="#0F172A" Margin="0,0,0,12"/>
+                                <DataGrid ItemsSource="{Binding MonitorTagsView}" AutoGenerateColumns="False" IsReadOnly="True" Background="#FFFFFF" Foreground="#0F172A" BorderBrush="#D7DFEA" Margin="0,0,0,12" Visibility="{Binding IsMonitorIoPageVisible, Converter={StaticResource BooleanToVisibilityConverter}}" ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Auto">
                                     <DataGrid.Columns>
-                                        <DataGridTextColumn Header="Tag" Binding="{Binding Name}" Width="2*"/>
+                                        <DataGridTextColumn Header="PLC变量" Binding="{Binding Name}" Width="2*"/>
+                                        <DataGridTextColumn Header="方向" Binding="{Binding Direction}" Width="*"/>
                                         <DataGridTextColumn Header="分组" Binding="{Binding Group}" Width="*"/>
-                                        <DataGridTextColumn Header="分类" Binding="{Binding Category}" Width="*"/>
                                         <DataGridTextColumn Header="当前值" Binding="{Binding CurrentValue}" Width="*"/>
+                                        <DataGridTextColumn Header="NodeId" Binding="{Binding NodeId}" Width="2*"/>
                                     </DataGrid.Columns>
                                 </DataGrid>
-                                <Border Style="{StaticResource CardBorderStyle}" Background="#0B1324" Padding="12" Margin="0,0,0,12" Visibility="{Binding IsMonitorCommunicationPageVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <Border Style="{StaticResource CardBorderStyle}" Background="#FFFFFF" Padding="12" Margin="0,0,0,12" Visibility="{Binding IsMonitorCommunicationPageVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
                                     <Grid>
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="Auto"/>
@@ -667,40 +708,40 @@
                                             <RowDefinition Height="*"/>
                                         </Grid.RowDefinitions>
                                         <DockPanel Margin="0,0,0,8">
-                                            <TextBlock Text="OPC UA 内置调试器" FontSize="16" FontWeight="Bold" Foreground="White" VerticalAlignment="Center"/>
+                                            <TextBlock Text="OPC UA 内置调试器" FontSize="16" FontWeight="Bold" Foreground="#0F172A" VerticalAlignment="Center"/>
                                             <WrapPanel DockPanel.Dock="Right">
                                                 <Button Content="浏览根节点" Command="{Binding LoadOpcUaBrowserRootCommand}" Background="#0F766E" Foreground="White" BorderBrush="#0F766E" Padding="10,6" Margin="0,0,8,0"/>
-                                                <Button Content="读取选中节点" Command="{Binding RefreshSelectedOpcUaNodeCommand}" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="10,6" Margin="0,0,8,0"/>
-                                                <Button Content="加入变量表" Command="{Binding AddSelectedOpcUaNodeAsTagCommand}" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="10,6"/>
+                                                <Button Content="读取选中节点" Command="{Binding RefreshSelectedOpcUaNodeCommand}" Background="#E2E8F0" Foreground="#0F172A" BorderBrush="#CBD5E1" Padding="10,6" Margin="0,0,8,0"/>
+                                                <Button Content="加入变量表" Command="{Binding AddSelectedOpcUaNodeAsTagCommand}" Background="#E2E8F0" Foreground="#0F172A" BorderBrush="#CBD5E1" Padding="10,6"/>
                                             </WrapPanel>
                                         </DockPanel>
-                                        <TextBlock Grid.Row="1" Text="{Binding OpcUaBrowserStatus}" Foreground="#94A3B8" Margin="0,0,0,10" TextWrapping="Wrap"/>
-                                        <Border Grid.Row="2" Background="#111827" BorderBrush="#1F2937" BorderThickness="1" CornerRadius="8" MinHeight="320">
+                                        <TextBlock Grid.Row="1" Text="{Binding OpcUaBrowserStatus}" Foreground="#64748B" Margin="0,0,0,10" TextWrapping="Wrap"/>
+                                        <Border Grid.Row="2" Background="#F8FAFC" BorderBrush="#D7DFEA" BorderThickness="1" CornerRadius="8" MinHeight="320">
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="1.1*"/>
                                                     <ColumnDefinition Width="0.9*"/>
                                                 </Grid.ColumnDefinitions>
-                                                <Border Margin="12" Background="#0B1324" BorderBrush="#1F2937" BorderThickness="1" CornerRadius="8">
-                                                    <TreeView ItemsSource="{Binding OpcUaBrowserNodes}" Background="#0B1324" Foreground="White" BorderThickness="0" SelectedItemChanged="OpcUaBrowserTreeView_SelectedItemChanged">
+                                                <Border Margin="12" Background="#FFFFFF" BorderBrush="#D7DFEA" BorderThickness="1" CornerRadius="8">
+                                                    <TreeView ItemsSource="{Binding OpcUaBrowserNodes}" Background="#FFFFFF" Foreground="#0F172A" BorderThickness="0" SelectedItemChanged="OpcUaBrowserTreeView_SelectedItemChanged">
                                                         <TreeView.ItemContainerStyle>
                                                             <Style TargetType="TreeViewItem">
                                                                 <EventSetter Event="Expanded" Handler="OpcUaBrowserTreeViewItem_Expanded"/>
-                                                                <Setter Property="Foreground" Value="White"/>
+                                                                <Setter Property="Foreground" Value="#0F172A"/>
                                                             </Style>
                                                         </TreeView.ItemContainerStyle>
                                                         <TreeView.Resources>
                                                             <HierarchicalDataTemplate DataType="{x:Type model:OpcUaBrowseNode}" ItemsSource="{Binding Children}">
                                                                 <StackPanel Orientation="Horizontal">
-                                                                    <TextBlock Text="{Binding DisplayName}" Foreground="White"/>
+                                                                    <TextBlock Text="{Binding DisplayName}" Foreground="#0F172A"/>
                                                                     <TextBlock Text="  " />
-                                                                    <TextBlock Text="{Binding NodeClass}" Foreground="#94A3B8"/>
+                                                                    <TextBlock Text="{Binding NodeClass}" Foreground="#64748B"/>
                                                                 </StackPanel>
                                                             </HierarchicalDataTemplate>
                                                         </TreeView.Resources>
                                                     </TreeView>
                                                 </Border>
-                                                <Border Grid.Column="1" Margin="0,12,12,12" Background="#0B1324" BorderBrush="#1F2937" BorderThickness="1" CornerRadius="8" Padding="12">
+                                                <Border Grid.Column="1" Margin="0,12,12,12" Background="#FFFFFF" BorderBrush="#D7DFEA" BorderThickness="1" CornerRadius="8" Padding="12">
                                                     <StackPanel>
                                                         <TextBlock Text="节点详情" FontSize="15" FontWeight="Bold" Foreground="White" Margin="0,0,0,10"/>
                                                         <TextBlock Text="显示名" Foreground="#94A3B8"/>
@@ -769,10 +810,12 @@
                             </StackPanel>
                         </Border>
                     </Grid>
+                    </ScrollViewer>
                 </TabItem>
 
                 <TabItem Header="配方管理">
-                    <Grid Margin="12">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <Grid Margin="12" Width="{Binding ViewportWidth, RelativeSource={RelativeSource AncestorType=ScrollViewer}}">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="360"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                         <Border Grid.Column="0" Style="{StaticResource CardBorderStyle}" Padding="16" Margin="0,0,10,0">
                             <StackPanel>
@@ -827,47 +870,325 @@
                             </Grid>
                         </Border>
                     </Grid>
+                    </ScrollViewer>
                 </TabItem>
 
                 <TabItem Header="手动画面">
-                    <Grid Margin="12">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="1.2*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                        <Border Grid.Column="0" Style="{StaticResource CardBorderStyle}" Padding="16" Margin="0,0,10,0">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <Grid Margin="12" Width="{Binding ViewportWidth, RelativeSource={RelativeSource AncestorType=ScrollViewer}}">
+                        <Border Style="{StaticResource CardBorderStyle}" Padding="16">
                             <StackPanel>
-                                <TextBlock Text="{Binding CurrentManualTitle}" FontSize="20" FontWeight="Bold" Foreground="White" Margin="0,0,0,12"/>
+                                <TextBlock Text="{Binding CurrentManualTitle}" FontSize="20" FontWeight="Bold" Foreground="#0F172A" Margin="0,0,0,12"/>
+                                <Border Style="{StaticResource CardBorderStyle}" Background="#FFFFFF" Padding="12" Margin="0,0,0,12" Visibility="{Binding IsManualCylinderPageVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <StackPanel>
+                                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" MinHeight="420">
+                                            <ItemsControl ItemsSource="{Binding ManualCylinderBlockCards}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <WrapPanel/>
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate DataType="{x:Type model:ManualCylinderBlockItem}">
+                                                        <Border Style="{StaticResource CardBorderStyle}" Width="320" Padding="10" Margin="0,0,12,12">
+                                                            <Grid>
+                                                                <Grid.RowDefinitions>
+                                                                    <RowDefinition Height="Auto"/>
+                                                                    <RowDefinition Height="Auto"/>
+                                                                    <RowDefinition Height="Auto"/>
+                                                                    <RowDefinition Height="Auto"/>
+                                                                </Grid.RowDefinitions>
+                                                                <DockPanel LastChildFill="False">
+                                                                    <StackPanel DockPanel.Dock="Left">
+                                                                        <TextBlock Text="{Binding DisplayName}" FontSize="15" FontWeight="Bold" Foreground="#0F172A"/>
+                                                                        <TextBlock Text="{Binding StatusText}" Foreground="#2563EB" Margin="0,3,0,0" FontSize="13" FontWeight="SemiBold"/>
+                                                                    </StackPanel>
+                                                                    <Button DockPanel.Dock="Right" Content="参数设定" Click="OpenCylinderSettingsButton_Click" Background="#E2E8F0" Foreground="#0F172A" BorderBrush="#CBD5E1" Padding="10,6"/>
+                                                                </DockPanel>
+                                                                <UniformGrid Grid.Row="1" Columns="2" Margin="0,10,0,8">
+                                                                    <Button Content="原点操作" Command="{Binding DataContext.CylinderMoveToHomeCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" Foreground="#0F172A" Padding="10,8" Margin="0,0,6,0">
+                                                                        <Button.Style>
+                                                                            <Style TargetType="Button">
+                                                                                <Setter Property="Background" Value="#E6F4EA"/>
+                                                                                <Setter Property="BorderBrush" Value="#A7D7B5"/>
+                                                                                <Style.Triggers>
+                                                                                    <DataTrigger Binding="{Binding HomeActive}" Value="True">
+                                                                                        <Setter Property="Background" Value="#BFE3C8"/>
+                                                                                        <Setter Property="BorderBrush" Value="#6FA882"/>
+                                                                                    </DataTrigger>
+                                                                                </Style.Triggers>
+                                                                            </Style>
+                                                                        </Button.Style>
+                                                                    </Button>
+                                                                    <Button Content="动点操作" Command="{Binding DataContext.CylinderMoveToWorkCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" Foreground="#0F172A" Padding="10,8" Margin="6,0,0,0">
+                                                                        <Button.Style>
+                                                                            <Style TargetType="Button">
+                                                                                <Setter Property="Background" Value="#FFF7DB"/>
+                                                                                <Setter Property="BorderBrush" Value="#E9CD76"/>
+                                                                                <Style.Triggers>
+                                                                                    <DataTrigger Binding="{Binding OutputActive}" Value="True">
+                                                                                        <Setter Property="Background" Value="#FFE9A8"/>
+                                                                                        <Setter Property="BorderBrush" Value="#D0A93A"/>
+                                                                                    </DataTrigger>
+                                                                                </Style.Triggers>
+                                                                            </Style>
+                                                                        </Button.Style>
+                                                                    </Button>
+                                                                </UniformGrid>
+                                                                <UniformGrid Grid.Row="2" Columns="2" Margin="0,0,0,8">
+                                                                    <Border Background="#F8FAFC" BorderBrush="#D7DFEA" BorderThickness="1" CornerRadius="6" Padding="8" Margin="0,0,6,6">
+                                                                        <StackPanel>
+                                                                            <TextBlock Text="前到位" Foreground="#64748B" FontSize="11"/>
+                                                                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                                                <Ellipse Width="10" Height="10" Margin="0,2,6,0">
+                                                                                    <Ellipse.Style>
+                                                                                        <Style TargetType="Ellipse">
+                                                                                            <Setter Property="Fill" Value="#CBD5E1"/>
+                                                                                            <Style.Triggers>
+                                                                                                <DataTrigger Binding="{Binding WorkActive}" Value="True">
+                                                                                                    <Setter Property="Fill" Value="#22C55E"/>
+                                                                                                </DataTrigger>
+                                                                                            </Style.Triggers>
+                                                                                        </Style>
+                                                                                    </Ellipse.Style>
+                                                                                </Ellipse>
+                                                                                <TextBlock Text="{Binding WorkActive, StringFormat={}{0}}" Foreground="#0F172A" FontWeight="Bold"/>
+                                                                            </StackPanel>
+                                                                        </StackPanel>
+                                                                    </Border>
+                                                                    <Border Background="#F8FAFC" BorderBrush="#D7DFEA" BorderThickness="1" CornerRadius="6" Padding="8" Margin="6,0,0,6">
+                                                                        <StackPanel>
+                                                                            <TextBlock Text="后到位" Foreground="#64748B" FontSize="11"/>
+                                                                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                                                <Ellipse Width="10" Height="10" Margin="0,2,6,0">
+                                                                                    <Ellipse.Style>
+                                                                                        <Style TargetType="Ellipse">
+                                                                                            <Setter Property="Fill" Value="#CBD5E1"/>
+                                                                                            <Style.Triggers>
+                                                                                                <DataTrigger Binding="{Binding HomeActive}" Value="True">
+                                                                                                    <Setter Property="Fill" Value="#22C55E"/>
+                                                                                                </DataTrigger>
+                                                                                            </Style.Triggers>
+                                                                                        </Style>
+                                                                                    </Ellipse.Style>
+                                                                                </Ellipse>
+                                                                                <TextBlock Text="{Binding HomeActive, StringFormat={}{0}}" Foreground="#0F172A" FontWeight="Bold"/>
+                                                                            </StackPanel>
+                                                                        </StackPanel>
+                                                                    </Border>
+                                                                    <Border Background="#F8FAFC" BorderBrush="#D7DFEA" BorderThickness="1" CornerRadius="6" Padding="8" Margin="0,0,6,0">
+                                                                        <StackPanel>
+                                                                            <TextBlock Text="原点互锁" Foreground="#64748B" FontSize="11"/>
+                                                                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                                                <Ellipse Width="10" Height="10" Margin="0,2,6,0">
+                                                                                    <Ellipse.Style>
+                                                                                        <Style TargetType="Ellipse">
+                                                                                            <Setter Property="Fill" Value="#CBD5E1"/>
+                                                                                            <Style.Triggers>
+                                                                                                <DataTrigger Binding="{Binding HomeInterlockActive}" Value="True">
+                                                                                                    <Setter Property="Fill" Value="#22C55E"/>
+                                                                                                </DataTrigger>
+                                                                                            </Style.Triggers>
+                                                                                        </Style>
+                                                                                    </Ellipse.Style>
+                                                                                </Ellipse>
+                                                                                <TextBlock Text="{Binding HomeInterlockActive, StringFormat={}{0}}" Foreground="#0F172A" FontWeight="Bold"/>
+                                                                            </StackPanel>
+                                                                        </StackPanel>
+                                                                    </Border>
+                                                                    <Border Background="#F8FAFC" BorderBrush="#D7DFEA" BorderThickness="1" CornerRadius="6" Padding="8" Margin="6,0,0,0">
+                                                                        <StackPanel>
+                                                                            <TextBlock Text="动点互锁" Foreground="#64748B" FontSize="11"/>
+                                                                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                                                <Ellipse Width="10" Height="10" Margin="0,2,6,0">
+                                                                                    <Ellipse.Style>
+                                                                                        <Style TargetType="Ellipse">
+                                                                                            <Setter Property="Fill" Value="#CBD5E1"/>
+                                                                                            <Style.Triggers>
+                                                                                                <DataTrigger Binding="{Binding WorkInterlockActive}" Value="True">
+                                                                                                    <Setter Property="Fill" Value="#22C55E"/>
+                                                                                                </DataTrigger>
+                                                                                            </Style.Triggers>
+                                                                                        </Style>
+                                                                                    </Ellipse.Style>
+                                                                                </Ellipse>
+                                                                                <TextBlock Text="{Binding WorkInterlockActive, StringFormat={}{0}}" Foreground="#0F172A" FontWeight="Bold"/>
+                                                                            </StackPanel>
+                                                                        </StackPanel>
+                                                                    </Border>
+                                                                </UniformGrid>
+                                                                <Border Grid.Row="3" Background="#EFF6FF" BorderBrush="#BFDBFE" BorderThickness="1" CornerRadius="6" Padding="8">
+                                                                    <StackPanel>
+                                                                        <TextBlock Text="{Binding CurrentStateText}" Foreground="#1D4ED8" FontWeight="SemiBold" FontSize="11" TextWrapping="Wrap"/>
+                                                                        <TextBlock Text="{Binding InterlockHint}" Foreground="#1D4ED8" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                                                    </StackPanel>
+                                                                </Border>
+                                                            </Grid>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </ScrollViewer>
+                                    </StackPanel>
+                                </Border>
                                 <UniformGrid Columns="2" Margin="0,0,0,12">
-                                    <Border Style="{StaticResource CardBorderStyle}" Background="#0F172A" Padding="12" Margin="0,0,8,8" Visibility="{Binding IsManualMotorPageVisible, Converter={StaticResource BooleanToVisibilityConverter}}"><StackPanel><TextBlock Text="电机单元" FontSize="16" FontWeight="Bold" Foreground="White"/><TextBlock Text="--" Foreground="#CBD5E1" Margin="0,8,0,12"/><WrapPanel><Button Content="电机 启停" Command="{Binding ToggleDeviceCommand}" CommandParameter="Y_RunLamp" Style="{StaticResource PrimaryButtonStyle}"/><Button Content="故障复位" Command="{Binding ResetMotorFaultCommand}" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="12,8" Margin="0,0,8,8"/></WrapPanel></StackPanel></Border>
-                                    <Border Style="{StaticResource CardBorderStyle}" Background="#0F172A" Padding="12" Margin="8,0,0,8" Visibility="{Binding IsManualCylinderPageVisible, Converter={StaticResource BooleanToVisibilityConverter}}"><StackPanel><TextBlock Text="气缸单元" FontSize="16" FontWeight="Bold" Foreground="White"/><TextBlock Text="--" Foreground="#CBD5E1" Margin="0,8,0,12"/><WrapPanel><Button Content="气缸 伸缩" Command="{Binding ToggleDeviceCommand}" CommandParameter="Cylinder_Extend" Style="{StaticResource PrimaryButtonStyle}"/></WrapPanel><TextBlock Text="--" Foreground="#94A3B8" Margin="0,8,0,0"/></StackPanel></Border>
-                                    <Border Style="{StaticResource CardBorderStyle}" Background="#0F172A" Padding="12" Margin="0,0,8,8" Visibility="{Binding IsManualAxisPageVisible, Converter={StaticResource BooleanToVisibilityConverter}}"><StackPanel><TextBlock Text="轴单元" FontSize="16" FontWeight="Bold" Foreground="White"/><TextBlock Text="--" Foreground="#CBD5E1" Margin="0,8,0,12"/><WrapPanel><Button Content="轴使能" Command="{Binding ToggleAxisEnableCommand}" Style="{StaticResource PrimaryButtonStyle}"/><Button Content="报警复位" Command="{Binding AxisAlarmResetCommand}" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="12,8" Margin="0,0,8,8"/></WrapPanel><WrapPanel Margin="0,4,0,8"><TextBlock Text="Jog距离" Foreground="#CBD5E1" VerticalAlignment="Center" Margin="0,0,8,0"/><TextBox Width="80" Text="{Binding AxisJogDistance, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,12,0"/><Button Content="Jog-" Command="{Binding JogAxisNegativeCommand}" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="14,8" Margin="0,0,8,0"/><Button Content="Jog+" Command="{Binding JogAxisPositiveCommand}" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="14,8"/></WrapPanel><WrapPanel Margin="0,0,0,8"><TextBlock Text="目标位置" Foreground="#CBD5E1" VerticalAlignment="Center" Margin="0,0,8,0"/><TextBox Width="100" Text="{Binding AxisTargetPosition, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,12,0"/><Button Content="定位移动" Command="{Binding MoveAxisToTargetCommand}" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="14,8" Margin="0,0,8,0"/><Button Content="回零" Command="{Binding MoveAxisHomeCommand}" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="14,8"/></WrapPanel></StackPanel></Border>
-                                    <Border Style="{StaticResource CardBorderStyle}" Background="#0F172A" Padding="12" Margin="8,0,0,8" Visibility="{Binding IsManualRobotPageVisible, Converter={StaticResource BooleanToVisibilityConverter}}"><StackPanel><TextBlock Text="机械手单元" FontSize="16" FontWeight="Bold" Foreground="White"/><TextBlock Text="--" Foreground="#CBD5E1" Margin="0,8,0,12"/><WrapPanel><Button Content="机械手 启停" Command="{Binding ToggleDeviceCommand}" CommandParameter="Robot_Run" Style="{StaticResource PrimaryButtonStyle}"/><Button Content="暂停" Command="{Binding PauseRobotCommand}" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="12,8" Margin="0,0,8,8"/><Button Content="复位" Command="{Binding ResetRobotCommand}" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="12,8" Margin="0,0,8,8"/></WrapPanel></StackPanel></Border>
+                                    <Border Style="{StaticResource CardBorderStyle}" Background="#FFFFFF" Padding="12" Margin="0,0,8,8" Visibility="{Binding IsManualMotorPageVisible, Converter={StaticResource BooleanToVisibilityConverter}}"><StackPanel><TextBlock Text="电机单元" FontSize="16" FontWeight="Bold" Foreground="#0F172A"/><TextBlock Text="--" Foreground="#64748B" Margin="0,8,0,12"/><WrapPanel><Button Content="电机 启停" Command="{Binding ToggleDeviceCommand}" CommandParameter="Y_RunLamp" Style="{StaticResource PrimaryButtonStyle}"/><Button Content="故障复位" Command="{Binding ResetMotorFaultCommand}" Background="#E2E8F0" Foreground="#0F172A" BorderBrush="#CBD5E1" Padding="12,8" Margin="0,0,8,8"/></WrapPanel></StackPanel></Border>
+                                    <Border Style="{StaticResource CardBorderStyle}" Background="#FFFFFF" Padding="12" Margin="0,0,8,8" Visibility="{Binding IsManualAxisPageVisible, Converter={StaticResource BooleanToVisibilityConverter}}"><StackPanel><TextBlock Text="轴单元" FontSize="16" FontWeight="Bold" Foreground="#0F172A"/><TextBlock Text="--" Foreground="#64748B" Margin="0,8,0,12"/><WrapPanel><Button Content="轴使能" Command="{Binding ToggleAxisEnableCommand}" Style="{StaticResource PrimaryButtonStyle}"/><Button Content="报警复位" Command="{Binding AxisAlarmResetCommand}" Background="#E2E8F0" Foreground="#0F172A" BorderBrush="#CBD5E1" Padding="12,8" Margin="0,0,8,8"/></WrapPanel><WrapPanel Margin="0,4,0,8"><TextBlock Text="Jog距离" Foreground="#475569" VerticalAlignment="Center" Margin="0,0,8,0"/><TextBox Width="80" Text="{Binding AxisJogDistance, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,12,0"/><Button Content="Jog-" Command="{Binding JogAxisNegativeCommand}" Background="#E2E8F0" Foreground="#0F172A" BorderBrush="#CBD5E1" Padding="14,8" Margin="0,0,8,0"/><Button Content="Jog+" Command="{Binding JogAxisPositiveCommand}" Background="#E2E8F0" Foreground="#0F172A" BorderBrush="#CBD5E1" Padding="14,8"/></WrapPanel><WrapPanel Margin="0,0,0,8"><TextBlock Text="目标位置" Foreground="#475569" VerticalAlignment="Center" Margin="0,0,8,0"/><TextBox Width="100" Text="{Binding AxisTargetPosition, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,12,0"/><Button Content="定位移动" Command="{Binding MoveAxisToTargetCommand}" Background="#E2E8F0" Foreground="#0F172A" BorderBrush="#CBD5E1" Padding="14,8" Margin="0,0,8,0"/><Button Content="回零" Command="{Binding MoveAxisHomeCommand}" Background="#E2E8F0" Foreground="#0F172A" BorderBrush="#CBD5E1" Padding="14,8"/></WrapPanel></StackPanel></Border>
+                                    <Border Style="{StaticResource CardBorderStyle}" Background="#FFFFFF" Padding="12" Margin="8,0,0,8" Visibility="{Binding IsManualRobotPageVisible, Converter={StaticResource BooleanToVisibilityConverter}}"><StackPanel><TextBlock Text="机械手单元" FontSize="16" FontWeight="Bold" Foreground="#0F172A"/><TextBlock Text="--" Foreground="#64748B" Margin="0,8,0,12"/><WrapPanel><Button Content="机械手 启停" Command="{Binding ToggleDeviceCommand}" CommandParameter="Robot_Run" Style="{StaticResource PrimaryButtonStyle}"/><Button Content="暂停" Command="{Binding PauseRobotCommand}" Background="#E2E8F0" Foreground="#0F172A" BorderBrush="#CBD5E1" Padding="12,8" Margin="0,0,8,8"/><Button Content="复位" Command="{Binding ResetRobotCommand}" Background="#E2E8F0" Foreground="#0F172A" BorderBrush="#CBD5E1" Padding="12,8" Margin="0,0,8,8"/></WrapPanel></StackPanel></Border>
                                 </UniformGrid>
-                                <Border Style="{StaticResource CardBorderStyle}" Background="#0B1324" Padding="12" Visibility="{Binding IsManualStopperPageVisible, Converter={StaticResource BooleanToVisibilityConverter}}"><StackPanel><TextBlock Text="挡停单元" FontSize="16" FontWeight="Bold" Foreground="White"/><WrapPanel Margin="0,8,0,0"><Button Content="挡停 升降" Command="{Binding ToggleDeviceCommand}" CommandParameter="Stopper_Up" Style="{StaticResource PrimaryButtonStyle}"/></WrapPanel></StackPanel></Border>
+                                <Border Style="{StaticResource CardBorderStyle}" Background="#FFFFFF" Padding="12" Visibility="{Binding IsManualStopperPageVisible, Converter={StaticResource BooleanToVisibilityConverter}}"><StackPanel><TextBlock Text="挡停单元" FontSize="16" FontWeight="Bold" Foreground="#0F172A"/><WrapPanel Margin="0,8,0,0"><Button Content="挡停 升降" Command="{Binding ToggleDeviceCommand}" CommandParameter="Stopper_Up" Style="{StaticResource PrimaryButtonStyle}"/></WrapPanel></StackPanel></Border>
                             </StackPanel>
                         </Border>
-                        <Border Grid.Column="1" Style="{StaticResource CardBorderStyle}" Padding="16"><StackPanel><TextBlock Text="{Binding CurrentManualTitle}" FontSize="20" FontWeight="Bold" Foreground="White" Margin="0,0,0,4"/><TextBlock Text="当前只显示所选手动子画面的操作控件，右侧保留状态点总览用于联调确认。" Foreground="#94A3B8" Margin="0,0,0,12"/><DataGrid ItemsSource="{Binding Tags}" AutoGenerateColumns="False" IsReadOnly="True" Background="#111827" Foreground="White" BorderBrush="#1F2937" HeadersVisibility="Column"><DataGrid.Columns><DataGridTextColumn Header="Tag" Binding="{Binding Name}" Width="2*"/><DataGridTextColumn Header="分类" Binding="{Binding Category}" Width="*"/><DataGridTextColumn Header="值" Binding="{Binding CurrentValue}" Width="*"/><DataGridCheckBoxColumn Header="可写" Binding="{Binding IsWritable}" Width="*"/></DataGrid.Columns></DataGrid></StackPanel></Border>
                     </Grid>
+                    </ScrollViewer>
                 </TabItem>
 
                 <TabItem Header="参数设定">
-                    <Grid Margin="12">
-                        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-                        <Border Grid.Row="0" Style="{StaticResource CardBorderStyle}" Padding="16" Margin="0,0,0,12"><DockPanel><StackPanel Orientation="Vertical"><TextBlock Text="{Binding CurrentParameterTitle}" FontSize="20" FontWeight="Bold" Foreground="White"/><StackPanel Orientation="Horizontal" Margin="0,10,0,0"><TextBlock Text="当前角色：" FontSize="16" Foreground="#CBD5E1" VerticalAlignment="Center"/><TextBlock Text="{Binding CurrentRoleText}" FontSize="16" FontWeight="Bold" Foreground="White" VerticalAlignment="Center"/></StackPanel><StackPanel Orientation="Horizontal" Margin="0,10,0,0"><TextBlock Text="通讯状态：" FontSize="16" Foreground="#CBD5E1" VerticalAlignment="Center"/><Border Background="#1E3A8A" CornerRadius="12" Padding="12,4" Margin="8,0,0,0"><TextBlock Text="{Binding CommunicationStatus}" Foreground="White" FontWeight="SemiBold"/></Border></StackPanel></StackPanel><StackPanel DockPanel.Dock="Right" Orientation="Vertical"><WrapPanel><Button Content="PLC 通讯配置" Click="OpenCommunicationConfigButton_Click" Background="#0F766E" Foreground="White" BorderBrush="#0F766E" Padding="14,8" Margin="0,0,8,0"/><Button Content="加载参数" Command="{Binding LoadParametersCommand}" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="14,8" Margin="0,0,8,0"/><Button Content="保存参数" Command="{Binding SaveParametersCommand}" Style="{StaticResource PrimaryButtonStyle}"/></WrapPanel><TextBlock Text="参数页已按左侧子分类切换显示，PLC / OPC UA 通讯参数通过独立配置窗口管理。" Foreground="#94A3B8" Margin="0,8,0,0"/></StackPanel></DockPanel></Border>
-                        <Border Grid.Row="1" Style="{StaticResource CardBorderStyle}" Padding="16" Margin="0,0,0,12">
-                            <StackPanel>
-                                <TextBlock Text="PLC 通讯配置入口" FontSize="18" FontWeight="Bold" Foreground="White" Margin="0,0,0,8"/>
-                                <TextBlock Text="通讯参数已从首页移出。请点击右上方的“PLC 通讯配置”按钮，在独立配置窗口中完成 PLC / OPC UA 的 IP、端口、Endpoint 和登录方式设置。" Foreground="#94A3B8" TextWrapping="Wrap" Margin="0,0,0,12"/>
-                                <WrapPanel>
-                                    <Button Content="打开 PLC 通讯配置" Click="OpenCommunicationConfigButton_Click" Background="#0F766E" Foreground="White" BorderBrush="#0F766E" Padding="12,8" Margin="0,0,8,0"/>
-                                    <Button Content="加载通讯配置" Command="{Binding LoadConfigCommand}" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="12,8" Margin="0,0,8,0"/>
-                                    <Button Content="保存通讯配置" Command="{Binding SaveConfigCommand}" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="12,8"/>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <Grid Margin="12" Width="{Binding ViewportWidth, RelativeSource={RelativeSource AncestorType=ScrollViewer}}">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <Border Grid.Row="0" Style="{StaticResource CardBorderStyle}" Padding="16" Margin="0,0,0,12">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Orientation="Vertical">
+                                    <TextBlock Text="{Binding CurrentParameterTitle}" FontSize="20" FontWeight="Bold" Foreground="#0F172A"/>
+                                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                        <TextBlock Text="当前角色：" FontSize="16" Foreground="#64748B" VerticalAlignment="Center"/>
+                                        <TextBlock Text="{Binding CurrentRoleText}" FontSize="16" FontWeight="Bold" Foreground="#0F172A" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                        <TextBlock Text="通讯状态：" FontSize="16" Foreground="#64748B" VerticalAlignment="Center"/>
+                                        <Border Background="#DBEAFE" CornerRadius="12" Padding="12,4" Margin="8,0,0,0">
+                                            <TextBlock Text="{Binding CommunicationStatus}" Foreground="#1D4ED8" FontWeight="SemiBold"/>
+                                        </Border>
+                                    </StackPanel>
+                                    <TextBlock Text="PLC / OPC UA 通讯参数通过独立配置窗口管理。"
+                                               Foreground="#64748B"
+                                               Margin="0,10,0,0"/>
+                                    <Button Content="打开 PLC 通讯配置"
+                                            Click="OpenCommunicationConfigButton_Click"
+                                            Background="Transparent"
+                                            Foreground="#2563EB"
+                                            BorderBrush="{x:Null}"
+                                            Padding="0"
+                                            Margin="0,8,0,0"
+                                            HorizontalAlignment="Left"
+                                            Cursor="Hand"/>
+                                </StackPanel>
+
+                                <WrapPanel Grid.Column="1" Margin="20,0,0,0" Width="390" HorizontalAlignment="Right">
+                                    <Button Content="连接"
+                                            Click="ConnectButton_Click"
+                                            Background="#2563EB"
+                                            Foreground="White"
+                                            BorderBrush="#2563EB"
+                                            Width="120"
+                                            Height="38"
+                                            Margin="0,0,10,10"/>
+                                    <Button Content="断开"
+                                            Click="DisconnectButton_Click"
+                                            Background="#DC2626"
+                                            Foreground="White"
+                                            BorderBrush="#DC2626"
+                                            Width="120"
+                                            Height="38"
+                                            Margin="0,0,10,10"/>
+                                    <Button Content="加载参数"
+                                            Command="{Binding LoadParametersCommand}"
+                                            Background="#374151"
+                                            Foreground="White"
+                                            BorderBrush="#374151"
+                                            Width="120"
+                                            Height="38"
+                                            Margin="0,0,10,0"/>
+                                    <Button Content="保存参数"
+                                            Command="{Binding SaveParametersCommand}"
+                                            Background="#0F766E"
+                                            Foreground="White"
+                                            BorderBrush="#0F766E"
+                                            Width="120"
+                                            Height="38"/>
                                 </WrapPanel>
-                            </StackPanel>
-                        </Border>                        <DataGrid Grid.Row="2" ItemsSource="{Binding ParametersView}" AutoGenerateColumns="False" Background="#111827" Foreground="White" BorderBrush="#1F2937" RowBackground="#111827" AlternatingRowBackground="#0F172A" RowStyle="{StaticResource ParameterRowStyle}"><DataGrid.Columns><DataGridTextColumn Header="分类" Binding="{Binding Category}" Width="*" IsReadOnly="True"/><DataGridTextColumn Header="参数名" Binding="{Binding Name}" Width="*" IsReadOnly="True"/><DataGridTemplateColumn Header="值" Width="*"><DataGridTemplateColumn.CellTemplate><DataTemplate><TextBlock Text="{Binding Value}" VerticalAlignment="Center" Foreground="White"/></DataTemplate></DataGridTemplateColumn.CellTemplate><DataGridTemplateColumn.CellEditingTemplate><DataTemplate><TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding IsReadOnly}" Style="{StaticResource DataGridEditTextBoxStyle}"/></DataTemplate></DataGridTemplateColumn.CellEditingTemplate></DataGridTemplateColumn><DataGridTextColumn Header="单位" Binding="{Binding Unit}" Width="*" IsReadOnly="True"/><DataGridTextColumn Header="说明" Binding="{Binding Description}" Width="2*" IsReadOnly="True"/><DataGridTextColumn Header="最小权限" Binding="{Binding MinRole}" Width="*" IsReadOnly="True"/><DataGridTextColumn Header="权限状态" Binding="{Binding PermissionHint}" Width="*" IsReadOnly="True"/></DataGrid.Columns></DataGrid>
+                            </Grid>
+                        </Border>
+                        <DataGrid Grid.Row="1"
+                                  ItemsSource="{Binding ParametersView}"
+                                  AutoGenerateColumns="False"
+                                  Background="#FFFFFF"
+                                  Foreground="#0F172A"
+                                  BorderBrush="#D7DFEA"
+                                  BorderThickness="1"
+                                  RowBackground="#FFFFFF"
+                                  AlternatingRowBackground="#F8FAFC"
+                                  HeadersVisibility="Column"
+                                  GridLinesVisibility="Horizontal"
+                                  RowStyle="{StaticResource ParameterRowStyle}"
+                                  ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                  ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                  CanUserSortColumns="False"
+                                  CanUserResizeRows="False">
+                            <DataGrid.Resources>
+                                <Style TargetType="DataGridColumnHeader">
+                                    <Setter Property="Background" Value="#EEF2F7"/>
+                                    <Setter Property="Foreground" Value="#334155"/>
+                                    <Setter Property="BorderBrush" Value="#D7DFEA"/>
+                                    <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                                    <Setter Property="FontWeight" Value="SemiBold"/>
+                                    <Setter Property="Padding" Value="10,8"/>
+                                </Style>
+                                <Style TargetType="DataGridCell">
+                                    <Setter Property="Foreground" Value="#0F172A"/>
+                                    <Setter Property="Background" Value="Transparent"/>
+                                    <Setter Property="BorderBrush" Value="#E5E7EB"/>
+                                    <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                                    <Setter Property="Padding" Value="8,6"/>
+                                </Style>
+                                <Style TargetType="DataGridRow">
+                                    <Setter Property="Foreground" Value="#0F172A"/>
+                                    <Setter Property="Background" Value="#FFFFFF"/>
+                                </Style>
+                            </DataGrid.Resources>
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="分组" Binding="{Binding Category}" Width="*"
+                                                    IsReadOnly="True"/>
+                                <DataGridTextColumn Header="HMI变量" Binding="{Binding Name}" Width="*"
+                                                    IsReadOnly="True"/>
+                                <DataGridTemplateColumn Header="PLC变量" Width="2*">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Value}" VerticalAlignment="Center" Foreground="#0F172A" TextWrapping="Wrap"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                    <DataGridTemplateColumn.CellEditingTemplate>
+                                        <DataTemplate>
+                                            <TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding IsReadOnly}" Style="{StaticResource DataGridEditTextBoxStyle}"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellEditingTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTextColumn Header="绑定方向" Binding="{Binding Unit}" Width="*"
+                                                    IsReadOnly="True"/>
+                                <DataGridTextColumn Header="说明" Binding="{Binding Description}" Width="2*"
+                                                    IsReadOnly="True"/>
+                                <DataGridTextColumn Header="最小权限" Binding="{Binding MinRole}" Width="*"
+                                                    IsReadOnly="True"/>
+                                <DataGridTextColumn Header="编辑状态" Binding="{Binding PermissionHint}" Width="*"
+                                                    IsReadOnly="True"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
                     </Grid>
+                    </ScrollViewer>
                 </TabItem>
 
                 <TabItem Header="报警画面">
-                    <Grid Margin="12">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <Grid Margin="12" Width="{Binding ViewportWidth, RelativeSource={RelativeSource AncestorType=ScrollViewer}}">
                         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
                         <Border Grid.Row="0" Style="{StaticResource CardBorderStyle}" Padding="16" Margin="0,0,0,12"><DockPanel><StackPanel><TextBlock Text="{Binding CurrentAlarmTitle}" FontSize="20" FontWeight="Bold" Foreground="White"/><TextBlock Text="报警父页面已按左侧子导航切换显示。" Foreground="#94A3B8" Margin="0,8,0,0"/></StackPanel><WrapPanel DockPanel.Dock="Right"><Button Content="确认全部报警" Command="{Binding AcknowledgeAllAlarmsCommand}" Style="{StaticResource PrimaryButtonStyle}"/><Button Content="复位全部报警" Command="{Binding ResetAllAlarmsCommand}" Background="#B91C1C" Foreground="White" BorderBrush="#B91C1C" Padding="14,8" Margin="0,0,8,0"/><Button Content="保存报警历史" Command="{Binding SaveAlarmHistoryCommand}" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="14,8" Margin="0,0,8,0"/><Button Content="加载报警历史" Command="{Binding LoadAlarmHistoryCommand}" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="14,8"/></WrapPanel></DockPanel></Border>
                         <Grid Grid.Row="1">
@@ -877,46 +1198,308 @@
                             <Border Style="{StaticResource CardBorderStyle}" Padding="12" Visibility="{Binding IsAlarmStatisticsPageVisible, Converter={StaticResource BooleanToVisibilityConverter}}"><StackPanel><TextBlock Text="报警统计" FontSize="18" FontWeight="Bold" Foreground="White" Margin="0,0,0,12"/><WrapPanel Margin="0,0,0,10"><TextBlock Text="级别：" Foreground="#CBD5E1" VerticalAlignment="Center" Margin="0,0,8,0"/><ComboBox Width="120" ItemsSource="{Binding AlarmLevelOptions}" SelectedItem="{Binding SelectedAlarmLevel}" Margin="0,0,12,0"/><TextBlock Text="时间：" Foreground="#CBD5E1" VerticalAlignment="Center" Margin="0,0,8,0"/><ComboBox Width="120" ItemsSource="{Binding AlarmTimeRangeOptions}" SelectedItem="{Binding SelectedAlarmTimeRange}" Margin="0,0,12,0"/><CheckBox Content="只看重点报警" IsChecked="{Binding ShowOnlyFocusAlarms}" Foreground="White" VerticalAlignment="Center"/></WrapPanel><Border Style="{StaticResource CardBorderStyle}" Background="#0B1324" Padding="12" Margin="0,0,0,12"><StackPanel><TextBlock Text="重点处理建议" FontSize="16" FontWeight="Bold" Foreground="White"/><TextBlock Text="{Binding FocusAlarmHint}" Foreground="#FCA5A5" Margin="0,8,0,0" TextWrapping="Wrap"/><TextBlock Text="{Binding EstimatedDowntimeMinutes, StringFormat=预计停机：{0:F1} min}" Foreground="#FCD34D" Margin="0,8,0,0"/><TextBlock Text="{Binding EstimatedProductionLoss, StringFormat=预计影响产量：{0}}" Foreground="#FCA5A5" Margin="0,4,0,0"/></StackPanel></Border><DataGrid ItemsSource="{Binding AlarmStatisticsView}" AutoGenerateColumns="False" Background="#111827" Foreground="White" BorderBrush="#1F2937"><DataGrid.Columns><DataGridTextColumn Header="来源" Binding="{Binding Source}" Width="*"/><DataGridTextColumn Header="级别" Binding="{Binding Level}" Width="*"/><DataGridTextColumn Header="累计次数" Binding="{Binding Count}" Width="*"/><DataGridTextColumn Header="处理建议" Binding="{Binding HandlingSuggestion}" Width="2*"/><DataGridTemplateColumn Header="联动" Width="*"><DataGridTemplateColumn.CellTemplate><DataTemplate><Button Content="看流程" Command="{Binding DataContext.JumpToFlowByAlarmCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding Source}" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="8,4"/></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn></DataGrid.Columns></DataGrid></StackPanel></Border>
                         </Grid>
                     </Grid>
+                    </ScrollViewer>
                 </TabItem>
 
                 <TabItem Header="登录权限">
-                    <Grid Margin="12"><Grid.ColumnDefinitions><ColumnDefinition Width="360"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <Grid Margin="12" Width="{Binding ViewportWidth, RelativeSource={RelativeSource AncestorType=ScrollViewer}}"><Grid.ColumnDefinitions><ColumnDefinition Width="360"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                         <Border Grid.Column="0" Style="{StaticResource CardBorderStyle}" Padding="16" Margin="0,0,10,0"><StackPanel><TextBlock Text="登录权限" FontSize="20" FontWeight="Bold" Foreground="White" Margin="0,0,0,12"/><TextBlock Text="当前身份" Foreground="#CBD5E1"/><TextBlock Text="{Binding CurrentRoleText}" FontSize="24" FontWeight="Bold" Foreground="White" Margin="0,4,0,12"/><TextBlock Text="密码" Foreground="#CBD5E1"/><PasswordBox x:Name="RolePasswordBox" PasswordChanged="RolePasswordBox_PasswordChanged" Margin="0,4,0,12"/><WrapPanel><Button Content="操作员" Command="{Binding LoginCommand}" CommandParameter="Operator" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="12,8" Margin="0,0,8,8"/><Button Content="工程师" Command="{Binding LoginCommand}" CommandParameter="Engineer" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="12,8" Margin="0,0,8,8"/><Button Content="管理员" Command="{Binding LoginCommand}" CommandParameter="Administrator" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="12,8" Margin="0,0,8,8"/></WrapPanel><Button Content="退出登录" Command="{Binding LogoutCommand}" Background="#B91C1C" Foreground="White" BorderBrush="#B91C1C" Padding="12,8" Width="120"/><TextBlock Text="示例密码：工程师 123456，管理员 admin888" Margin="0,12,0,0" Foreground="#94A3B8" TextWrapping="Wrap"/></StackPanel></Border>
                         <Border Grid.Column="1" Style="{StaticResource CardBorderStyle}" Padding="16"><StackPanel><TextBlock Text="权限说明" FontSize="18" FontWeight="Bold" Foreground="White" Margin="0,0,0,12"/><TextBlock Text="操作员：查看、监控、设备操作。" Foreground="#CBD5E1" Margin="0,0,0,8"/><TextBlock Text="工程师：可修改大部分工艺与设备参数。" Foreground="#CBD5E1" Margin="0,0,0,8"/><TextBlock Text="管理员：最高权限，可维护系统级参数和报警复位。" Foreground="#CBD5E1" Margin="0,0,0,8"/><TextBlock Text="当前参数页是否允许编辑：" Foreground="#CBD5E1" Margin="0,12,0,4"/><TextBlock Text="{Binding CanEditParameters}" FontSize="24" FontWeight="Bold" Foreground="White"/><TextBlock Text="当前是否允许报警复位：" Foreground="#CBD5E1" Margin="0,12,0,4"/><TextBlock Text="{Binding CanAdmin}" FontSize="24" FontWeight="Bold" Foreground="White"/></StackPanel></Border>
                     </Grid>
+                    </ScrollViewer>
                 </TabItem>
 
                 <TabItem Header="操作审计">
-                    <Grid Margin="12">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <Grid Margin="12" Width="{Binding ViewportWidth, RelativeSource={RelativeSource AncestorType=ScrollViewer}}">
                         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
                         <Border Grid.Row="0" Style="{StaticResource CardBorderStyle}" Padding="16" Margin="0,0,0,12"><StackPanel><TextBlock Text="操作履历审计" FontSize="20" FontWeight="Bold" Foreground="White"/><TextBlock Text="记录登录、确认框、联锁拦截、设备操作、弹窗提示等行为。" Foreground="#94A3B8" Margin="0,8,0,0"/></StackPanel></Border>
                         <DataGrid Grid.Row="1" ItemsSource="{Binding OperationAudits}" AutoGenerateColumns="False" Background="#111827" Foreground="White" BorderBrush="#1F2937"><DataGrid.Columns><DataGridTextColumn Header="时间" Binding="{Binding Time}" Width="*"/><DataGridTextColumn Header="用户" Binding="{Binding User}" Width="*"/><DataGridTextColumn Header="动作" Binding="{Binding Action}" Width="*"/><DataGridTextColumn Header="目标" Binding="{Binding Target}" Width="*"/><DataGridTextColumn Header="结果" Binding="{Binding Result}" Width="*"/><DataGridTextColumn Header="详情" Binding="{Binding Detail}" Width="2*"/></DataGrid.Columns></DataGrid>
                     </Grid>
+                    </ScrollViewer>
                 </TabItem>
 
                 <TabItem Header="设计器">
-                    <Grid Margin="12" Visibility="{Binding IsDesignMode, Converter={StaticResource BooleanToVisibilityConverter}}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="280"/><ColumnDefinition Width="*"/><ColumnDefinition Width="360"/></Grid.ColumnDefinitions>
-                        <Border Grid.Column="0" Style="{StaticResource CardBorderStyle}" Padding="10" Margin="0,0,10,0"><DockPanel><StackPanel DockPanel.Dock="Top"><TextBlock Text="页面与工具箱" FontSize="18" FontWeight="Bold" Foreground="White" Margin="0,0,0,12"/><TextBlock Text="工程名称" Foreground="#CBD5E1"/><TextBox Text="{Binding DesignerProjectName, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,8"/><TextBlock Text="当前页面" Foreground="#CBD5E1"/><ComboBox ItemsSource="{Binding DesignerPages}" SelectedItem="{Binding SelectedDesignerPage}" Margin="0,4,0,8"/><WrapPanel Margin="0,0,0,8"><Button Content="新建页面" Command="{Binding AddNewPageCommand}" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="10,6" Margin="0,0,6,6"/><Button Content="删除页面" Command="{Binding RemoveCurrentPageCommand}" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="10,6" Margin="0,0,6,6"/><Button Content="加载工程" Command="{Binding LoadDesignerProjectCommand}" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="10,6" Margin="0,0,6,6"/></WrapPanel><TextBlock Text="运行页模板" Foreground="#CBD5E1"/><ComboBox ItemsSource="{Binding RuntimeTemplates}" SelectedItem="{Binding SelectedRuntimeTemplate}" Margin="0,4,0,8"/><Button Content="应用模板" Command="{Binding ApplyRuntimeTemplateCommand}" CommandParameter="{Binding SelectedRuntimeTemplate}" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="10,6" Margin="0,0,0,8"/><TextBlock Text="页面名称" Foreground="#CBD5E1"/><TextBox Text="{Binding DesignerPageName, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,8"/><TextBlock Text="画布尺寸" Foreground="#CBD5E1"/><UniformGrid Columns="2" Margin="0,4,0,8"><TextBox Text="{Binding DesignerCanvasWidth, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,6,0"/><TextBox Text="{Binding DesignerCanvasHeight, UpdateSourceTrigger=PropertyChanged}" Margin="6,0,0,0"/></UniformGrid><TextBlock Text="工具箱" Foreground="#CBD5E1" Margin="0,0,0,8"/></StackPanel><ItemsControl ItemsSource="{Binding ToolboxItems}"><ItemsControl.ItemTemplate><DataTemplate><Button Content="{Binding}" Command="{Binding DataContext.AddDesignerElementCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" Margin="0,0,0,8" Padding="10" Background="#1F2937" Foreground="White" BorderBrush="#334155" PreviewMouseMove="ToolboxItem_PreviewMouseMove"/></DataTemplate></ItemsControl.ItemTemplate></ItemsControl></DockPanel></Border>
-                        <Border Grid.Column="1" Style="{StaticResource CardBorderStyle}" Padding="10" Margin="0,0,10,0"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions><DockPanel Margin="0,0,0,10"><TextBlock Text="设计画布" FontSize="18" FontWeight="Bold" Foreground="White"/><TextBlock DockPanel.Dock="Right" Text="仅设计态可编辑" Foreground="#94A3B8"/></DockPanel><ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"><Canvas x:Name="DesignerCanvas" Width="{Binding DesignerCanvasWidth}" Height="{Binding DesignerCanvasHeight}" Background="#0F172A" ClipToBounds="True" AllowDrop="True" DragOver="DesignerCanvas_DragOver" Drop="DesignerCanvas_Drop"><ItemsControl ItemsSource="{Binding DesignerElements}"><ItemsControl.ItemsPanel><ItemsPanelTemplate><Canvas/></ItemsPanelTemplate></ItemsControl.ItemsPanel><ItemsControl.ItemContainerStyle><Style TargetType="ContentPresenter"><Setter Property="Canvas.Left" Value="{Binding Left}"/><Setter Property="Canvas.Top" Value="{Binding Top}"/></Style></ItemsControl.ItemContainerStyle><ItemsControl.Resources><DataTemplate DataType="{x:Type model:DesignerElement}"><Border Width="{Binding Width}" Height="{Binding Height}" Background="{Binding Background, Converter={StaticResource StringToBrushConverter}}" BorderBrush="{Binding BorderBrush, Converter={StaticResource StringToBrushConverter}}" BorderThickness="2" CornerRadius="8" behavior:DragCanvasBehavior.EnableDrag="True"><Button Command="{Binding DataContext.SelectDesignerElementCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" Background="Transparent" BorderThickness="0" Padding="0"><Grid><StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"><TextBlock Text="{Binding ElementType}" FontSize="10" Foreground="#E2E8F0" HorizontalAlignment="Center"/><TextBlock Text="{Binding Text}" FontSize="{Binding FontSize}" FontWeight="SemiBold" Foreground="{Binding Foreground, Converter={StaticResource StringToBrushConverter}}" HorizontalAlignment="Center" TextWrapping="Wrap"/></StackPanel></Grid></Button></Border></DataTemplate></ItemsControl.Resources></ItemsControl></Canvas></ScrollViewer></Grid></Border>
-                        <Border Grid.Column="2" Style="{StaticResource CardBorderStyle}" Padding="12"><ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel><TextBlock Text="属性编辑器" FontSize="18" FontWeight="Bold" Foreground="White" Margin="0,0,0,12"/><WrapPanel Margin="0,0,0,10"><Button Content="删除" Command="{Binding RemoveSelectedDesignerElementCommand}" Background="#B91C1C" Foreground="White" BorderBrush="#B91C1C" Padding="10,6" Margin="0,0,6,6"/><Button Content="复制" Command="{Binding CopySelectedDesignerElementCommand}" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="10,6" Margin="0,0,6,6"/><Button Content="粘贴" Command="{Binding PasteDesignerElementCommand}" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="10,6" Margin="0,0,6,6"/></WrapPanel><TextBlock Text="名称" Foreground="#CBD5E1"/><TextBox Text="{Binding SelectedDesignerElement.Name, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,8"/><TextBlock Text="类型" Foreground="#CBD5E1"/><TextBox Text="{Binding SelectedDesignerElement.ElementType, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,8"/><TextBlock Text="显示文本" Foreground="#CBD5E1"/><TextBox Text="{Binding SelectedDesignerElement.Text, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,8"/><TextBlock Text="变量绑定" Foreground="#CBD5E1"/><TextBox Text="{Binding SelectedDesignerElement.TagBinding, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,8"/></StackPanel></ScrollViewer></Border>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <Grid Margin="12" Width="{Binding ViewportWidth, RelativeSource={RelativeSource AncestorType=ScrollViewer}}" Visibility="{Binding IsDesignMode, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <Grid Grid.Row="1" Visibility="{Binding IsDesignerCanvasPageVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="280"/><ColumnDefinition Width="*"/><ColumnDefinition Width="360"/></Grid.ColumnDefinitions>
+                            <Border Grid.Column="0" Style="{StaticResource CardBorderStyle}" Padding="10" Margin="0,0,10,0"><DockPanel><StackPanel DockPanel.Dock="Top"><TextBlock Text="页面与工具箱" FontSize="18" FontWeight="Bold" Foreground="#0F172A" Margin="0,0,0,12"/><TextBlock Text="工程名称" Foreground="#475569"/><TextBox Text="{Binding DesignerProjectName, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,8"/><TextBlock Text="当前页面" Foreground="#475569"/><ComboBox ItemsSource="{Binding DesignerPages}" SelectedItem="{Binding SelectedDesignerPage}" Margin="0,4,0,8"/><WrapPanel Margin="0,0,0,8"><Button Content="新建页面" Command="{Binding AddNewPageCommand}" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="10,6" Margin="0,0,6,6"/><Button Content="删除页面" Command="{Binding RemoveCurrentPageCommand}" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="10,6" Margin="0,0,6,6"/><Button Content="加载工程" Command="{Binding LoadDesignerProjectCommand}" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="10,6" Margin="0,0,6,6"/></WrapPanel><TextBlock Text="运行页模板" Foreground="#475569"/><ComboBox ItemsSource="{Binding RuntimeTemplates}" SelectedItem="{Binding SelectedRuntimeTemplate}" Margin="0,4,0,8"/><Button Content="应用模板" Command="{Binding ApplyRuntimeTemplateCommand}" CommandParameter="{Binding SelectedRuntimeTemplate}" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="10,6" Margin="0,0,0,8"/><TextBlock Text="页面名称" Foreground="#475569"/><TextBox Text="{Binding DesignerPageName, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,8"/><TextBlock Text="画布尺寸" Foreground="#475569"/><UniformGrid Columns="2" Margin="0,4,0,8"><TextBox Text="{Binding DesignerCanvasWidth, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,6,0"/><TextBox Text="{Binding DesignerCanvasHeight, UpdateSourceTrigger=PropertyChanged}" Margin="6,0,0,0"/></UniformGrid><TextBlock Text="工具箱" Foreground="#475569" Margin="0,0,0,8"/></StackPanel><ItemsControl ItemsSource="{Binding ToolboxItems}"><ItemsControl.ItemTemplate><DataTemplate><Button Content="{Binding}" Command="{Binding DataContext.AddDesignerElementCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" Margin="0,0,0,8" Padding="10" Background="#F8FAFC" Foreground="#334155" BorderBrush="#D7DFEA" PreviewMouseMove="ToolboxItem_PreviewMouseMove"/></DataTemplate></ItemsControl.ItemTemplate></ItemsControl></DockPanel></Border>
+                            <Border Grid.Column="1" Style="{StaticResource CardBorderStyle}" Padding="10" Margin="0,0,10,0"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions><DockPanel Margin="0,0,0,10"><TextBlock Text="设计画布" FontSize="18" FontWeight="Bold" Foreground="#0F172A"/><TextBlock DockPanel.Dock="Right" Text="仅设计态可编辑" Foreground="#64748B"/></DockPanel><ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"><Canvas x:Name="DesignerCanvas" Width="{Binding DesignerCanvasWidth}" Height="{Binding DesignerCanvasHeight}" Background="#0F172A" ClipToBounds="True" AllowDrop="True" DragOver="DesignerCanvas_DragOver" Drop="DesignerCanvas_Drop"><ItemsControl ItemsSource="{Binding DesignerElements}"><ItemsControl.ItemsPanel><ItemsPanelTemplate><Canvas/></ItemsPanelTemplate></ItemsControl.ItemsPanel><ItemsControl.ItemContainerStyle><Style TargetType="ContentPresenter"><Setter Property="Canvas.Left" Value="{Binding Left}"/><Setter Property="Canvas.Top" Value="{Binding Top}"/></Style></ItemsControl.ItemContainerStyle><ItemsControl.Resources><DataTemplate DataType="{x:Type model:DesignerElement}"><Border Width="{Binding Width}" Height="{Binding Height}" Background="{Binding Background, Converter={StaticResource StringToBrushConverter}}" BorderBrush="{Binding BorderBrush, Converter={StaticResource StringToBrushConverter}}" BorderThickness="2" CornerRadius="8" behavior:DragCanvasBehavior.EnableDrag="True"><Button Command="{Binding DataContext.SelectDesignerElementCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" Background="Transparent" BorderThickness="0" Padding="0"><Grid><StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"><TextBlock Text="{Binding ElementType}" FontSize="10" Foreground="#E2E8F0" HorizontalAlignment="Center"/><TextBlock Text="{Binding Text}" FontSize="{Binding FontSize}" FontWeight="SemiBold" Foreground="{Binding Foreground, Converter={StaticResource StringToBrushConverter}}" HorizontalAlignment="Center" TextWrapping="Wrap"/></StackPanel></Grid></Button></Border></DataTemplate></ItemsControl.Resources></ItemsControl></Canvas></ScrollViewer></Grid></Border>
+                            <Border Grid.Column="2" Style="{StaticResource CardBorderStyle}" Padding="12">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <StackPanel>
+                                        <TextBlock Text="属性编辑器" FontSize="18" FontWeight="Bold" Foreground="#0F172A" Margin="0,0,0,12"/>
+                                        <WrapPanel Margin="0,0,0,10">
+                                            <Button Content="删除" Command="{Binding RemoveSelectedDesignerElementCommand}" Background="#B91C1C" Foreground="White" BorderBrush="#B91C1C" Padding="10,6" Margin="0,0,6,6"/>
+                                            <Button Content="复制" Command="{Binding CopySelectedDesignerElementCommand}" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="10,6" Margin="0,0,6,6"/>
+                                            <Button Content="粘贴" Command="{Binding PasteDesignerElementCommand}" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="10,6" Margin="0,0,6,6"/>
+                                        </WrapPanel>
+                                        <TextBlock Text="名称" Foreground="#475569"/>
+                                        <TextBox Text="{Binding SelectedDesignerElement.Name, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,8"/>
+                                        <TextBlock Text="类型" Foreground="#475569"/>
+                                        <TextBox Text="{Binding SelectedDesignerElement.ElementType, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,8"/>
+                                        <TextBlock Text="显示文本" Foreground="#475569"/>
+                                        <TextBox Text="{Binding SelectedDesignerElement.Text, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,8"/>
+                                        <TextBlock Text="变量绑定" Foreground="#475569"/>
+                                        <ComboBox ItemsSource="{Binding Tags}" DisplayMemberPath="Name" SelectedValuePath="Name" SelectedValue="{Binding SelectedDesignerElement.TagBinding, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,8"/>
+                                        <TextBlock Text="动作方式" Foreground="#475569" Visibility="{Binding IsSelectedDesignerElementButtonLike, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                        <ComboBox ItemsSource="{Binding DesignerActionOptions}" SelectedItem="{Binding SelectedDesignerElement.CommandBinding, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,8" Visibility="{Binding IsSelectedDesignerElementButtonLike, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                        <TextBlock Text="跳转目标" Foreground="#475569" Visibility="{Binding IsSelectedDesignerElementNavigationAction, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                        <ComboBox ItemsSource="{Binding DesignerNavigationTargetOptions}" SelectedItem="{Binding SelectedDesignerElement.NavigationTarget, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,12" Visibility="{Binding IsSelectedDesignerElementNavigationAction, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                        <TextBlock Foreground="#64748B" TextWrapping="Wrap" Text="按钮类控件现在可直接选择绑定变量和动作方式；页面跳转动作可单独设置目标页面。" />
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </Border>
+                        </Grid>
+
+                        <Grid Grid.Row="1" Visibility="{Binding IsDesignerIoProgramPageVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="420"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Border Grid.Column="0" Style="{StaticResource CardBorderStyle}" Padding="16" Margin="0,0,10,0">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <StackPanel>
+                                        <TextBlock Text="手动程序生成" FontSize="20" FontWeight="Bold" Foreground="#0F172A"/>
+                                        <TextBlock Text="{Binding IoGenerationHeadline}" Foreground="#2563EB" FontWeight="SemiBold"/>
+                                        <TextBlock Text="{Binding IoImportSummary}" Foreground="#0F172A" Margin="0,6,0,0"/>
+                                        <TextBlock Text="{Binding IoGenerationCountSummary}" Foreground="#64748B" Margin="0,4,0,12"/>
+
+                                        <TextBlock Text="PLC 模板" Foreground="#475569"/>
+                                        <ComboBox ItemsSource="{Binding IoPlcTemplateOptions}" SelectedItem="{Binding SelectedIoPlcTemplate}" Margin="0,4,0,10"/>
+                                        <TextBlock Text="工位号 / OP 编号" Foreground="#475569"/>
+                                        <TextBox Text="{Binding IoOperationNumber, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,12"/>
+                                        <TextBlock Text="保存间隔 / 分钟" Foreground="#475569"/>
+                                        <Grid Margin="0,4,0,12">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="72"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox Grid.Column="0" Text="{Binding IoSaveIntervalMinutes, UpdateSourceTrigger=PropertyChanged}" HorizontalContentAlignment="Center"/>
+                                            <TextBlock Grid.Column="1" Text="小于 5 分钟时，重复保存会写入同一文件并追加履历" Foreground="#64748B" VerticalAlignment="Center" Margin="8,0,0,0" TextWrapping="Wrap"/>
+                                        </Grid>
+
+                                        <WrapPanel Margin="0,0,0,12">
+                                            <Button Content="导入 IO 表" Command="{Binding ImportIoTableCommand}" Style="{StaticResource PrimaryButtonStyle}" Padding="10,6" Margin="0,0,6,6"/>
+                                            <Button Content="保存 IO 表" Command="{Binding SaveIoTableToSourceCommand}" IsEnabled="{Binding CanSaveIoTable}" Background="#0F766E" Foreground="White" BorderBrush="#0F766E" Padding="10,6" Margin="0,0,6,6"/>
+                                            <Button Content="生成程序" Command="{Binding GenerateIoProgramsCommand}" Background="#0F766E" Foreground="White" BorderBrush="#0F766E" Padding="10,6" Margin="0,0,6,6"/>
+                                            <Button Content="打开目录" Command="{Binding OpenGeneratedIoFolderCommand}" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="10,6" Margin="0,0,6,6"/>
+                                            <Button Content="清空" Command="{Binding ClearIoTableCommand}" Background="#E2E8F0" Foreground="#0F172A" BorderBrush="#CBD5E1" Padding="10,6" Margin="0,0,6,6"/>
+                                        </WrapPanel>
+
+                                        <Border Background="#F8FAFC" BorderBrush="#D7DFEA" BorderThickness="1" CornerRadius="8" Padding="12">
+                                            <StackPanel>
+                                                <TextBlock Text="生成内容" FontSize="16" FontWeight="SemiBold" Foreground="#0F172A"/>
+                                                <TextBlock Text="1. DBxx_IO.txt" Foreground="#475569" Margin="0,8,0,0"/>
+                                                <TextBlock Text="2. DI_ACT_Comment.txt" Foreground="#475569" Margin="0,4,0,0"/>
+                                                <TextBlock Text="3. DO_ACT_Comment.txt" Foreground="#475569" Margin="0,4,0,0"/>
+                                                <TextBlock Text="4. ACT_Cylinder / ACT_Vacuum / ACT_Sensor" Foreground="#475569" Margin="0,4,0,0"/>
+                                                <TextBlock Text="5. ACT_Motor / ACT_Axis / ACT_Rotdisk" Foreground="#475569" Margin="0,4,0,0"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </Border>
+
+                            <Grid Grid.Column="1">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="3*"/>
+                                    <RowDefinition Height="2*"/>
+                                </Grid.RowDefinitions>
+                                <Border Grid.Row="0" Style="{StaticResource CardBorderStyle}" Padding="12" Margin="0,0,0,10" MinHeight="260">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="*"/>
+                                        </Grid.RowDefinitions>
+                                        <Grid Margin="0,0,0,10" MouseLeftButtonDown="IoPreviewHeader_MouseLeftButtonDown" Background="Transparent">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="IO 表预览" FontSize="18" FontWeight="Bold" Foreground="#0F172A" VerticalAlignment="Center"/>
+                                            <Button Grid.Column="2" Width="30" Height="30" Margin="8,0,0,0" Padding="0" HorizontalAlignment="Right" Command="{Binding SaveIoTableToSourceCommand}" IsEnabled="{Binding CanSaveIoTable}" Background="#E2E8F0" Foreground="#0F172A" BorderBrush="#CBD5E1" ToolTip="保存 IO 表 (Ctrl+S)">
+                                                <materialDesign:PackIcon Kind="ContentSaveOutline" Width="16" Height="16" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Button>
+                                        </Grid>
+                                        <DataGrid x:Name="IoPreviewDataGrid" Grid.Row="1" ItemsSource="{Binding IoTableRows}" AutoGenerateColumns="False" CanUserAddRows="False" CanUserSortColumns="False" HeadersVisibility="Column" Background="#FFFFFF" Foreground="#0F172A" BorderBrush="#D7DFEA" RowBackground="#FFFFFF" AlternatingRowBackground="#F8FAFC" MaxHeight="420">
+                                            <DataGrid.Columns>
+                                                <DataGridTextColumn Header="输入地址" Binding="{Binding InputAddress}" Width="*"/>
+                                                <DataGridTextColumn Header="输入注释" Binding="{Binding InputComment}" Width="*"/>
+                                                <DataGridTextColumn Header="输出地址" Binding="{Binding OutputAddress}" Width="*"/>
+                                                <DataGridTextColumn Header="输出注释" Binding="{Binding OutputComment}" Width="*"/>
+                                            </DataGrid.Columns>
+                                        </DataGrid>
+                                    </Grid>
+                                </Border>
+                                <Border Grid.Row="1" Style="{StaticResource CardBorderStyle}" Padding="12" MinHeight="220">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="*"/>
+                                        </Grid.RowDefinitions>
+                                        <Grid Margin="0,0,0,10" MouseLeftButtonDown="IoProgramPreviewHeader_MouseLeftButtonDown" Background="Transparent">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="程序预览" FontSize="18" FontWeight="Bold" Foreground="#0F172A" VerticalAlignment="Center"/>
+                                            <ComboBox Grid.Column="3" Width="220" ItemsSource="{Binding GeneratedIoPrograms}" SelectedItem="{Binding SelectedGeneratedIoProgram}" DisplayMemberPath="DisplayName" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                            <StackPanel Grid.Column="4" Orientation="Horizontal">
+                                                <Button Content="复制当前文件" Click="CopyCurrentIoProgramButton_Click" Background="#E2E8F0" Foreground="#0F172A" BorderBrush="#CBD5E1" Padding="8,4" Margin="0,0,8,0"/>
+                                                <Button Content="打开当前文件" Command="{Binding OpenGeneratedIoFileCommand}" CommandParameter="{Binding SelectedGeneratedIoProgram}" Background="#E2E8F0" Foreground="#0F172A" BorderBrush="#CBD5E1" Padding="8,4"/>
+                                            </StackPanel>
+                                        </Grid>
+                                        <TextBox x:Name="IoProgramPreviewTextBox" Grid.Row="1" Text="{Binding SelectedGeneratedIoProgramContent, Mode=OneWay}" IsReadOnly="True" TextWrapping="NoWrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" FontFamily="Consolas" Background="#F8FAFC" BorderBrush="#D7DFEA" Foreground="#0F172A"/>
+                                    </Grid>
+                                </Border>
+                            </Grid>
+                        </Grid>
+
+                        <Grid Grid.Row="1" Visibility="{Binding IsDesignerAutoProgramPageVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="440"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Border Grid.Column="0" Style="{StaticResource CardBorderStyle}" Padding="16" Margin="0,0,10,0">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <StackPanel>
+                                        <TextBlock Text="自动程序生成" FontSize="20" FontWeight="Bold" Foreground="#0F172A"/>
+                                        <TextBlock Text="{Binding AutoProgramHeadline}" Foreground="#2563EB" FontWeight="SemiBold"/>
+                                        <TextBlock Text="{Binding AutoProgramSummary}" Foreground="#64748B" Margin="0,6,0,12" TextWrapping="Wrap"/>
+
+                                        <TextBlock Text="流程名称" Foreground="#475569"/>
+                                        <TextBox Text="{Binding AutoProgramName, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,10"/>
+                                        <TextBlock Text="工位 / Station" Foreground="#475569"/>
+                                        <TextBox Text="{Binding AutoProgramStation, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,12"/>
+
+                                        <WrapPanel Margin="0,0,0,12">
+                                            <Button Content="新增步骤" Command="{Binding AddAutoProgramStepCommand}" Style="{StaticResource PrimaryButtonStyle}" Padding="10,6" Margin="0,0,6,6"/>
+                                            <Button Content="生成程序" Command="{Binding GenerateAutoProgramsCommand}" Background="#0F766E" Foreground="White" BorderBrush="#0F766E" Padding="10,6" Margin="0,0,6,6"/>
+                                            <Button Content="打开目录" Command="{Binding OpenGeneratedAutoFolderCommand}" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="10,6" Margin="0,0,6,6"/>
+                                            <Button Content="重置流程" Command="{Binding ResetAutoProgramFlowCommand}" Background="#E2E8F0" Foreground="#0F172A" BorderBrush="#CBD5E1" Padding="10,6" Margin="0,0,6,6"/>
+                                        </WrapPanel>
+
+                                        <Border Background="#F8FAFC" BorderBrush="#D7DFEA" BorderThickness="1" CornerRadius="8" Padding="12">
+                                            <StackPanel>
+                                                <TextBlock Text="流程步骤配置" FontSize="16" FontWeight="SemiBold" Foreground="#0F172A" Margin="0,0,0,10"/>
+                                                <DataGrid ItemsSource="{Binding AutoProgramFlowNodes}" AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False" CanUserSortColumns="False" HeadersVisibility="Column" Background="#FFFFFF" Foreground="#0F172A" BorderBrush="#D7DFEA" RowBackground="#FFFFFF" AlternatingRowBackground="#F8FAFC" MinHeight="340">
+                                                    <DataGrid.Columns>
+                                                        <DataGridTextColumn Header="步序" Binding="{Binding StepNo}" Width="70"/>
+                                                        <DataGridTextColumn Header="步骤名称" Binding="{Binding Title}" Width="120"/>
+                                                        <DataGridTextColumn Header="动作说明" Binding="{Binding Action}" Width="*"/>
+                                                        <DataGridTextColumn Header="流向" Binding="{Binding NextStep}" Width="80"/>
+                                                    </DataGrid.Columns>
+                                                </DataGrid>
+                                            </StackPanel>
+                                        </Border>
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </Border>
+
+                            <Grid Grid.Column="1">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="300"/>
+                                </Grid.RowDefinitions>
+                                <Border Grid.Row="0" Style="{StaticResource CardBorderStyle}" Padding="12" Margin="0,0,0,10" MinHeight="260">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="*"/>
+                                        </Grid.RowDefinitions>
+                                        <TextBlock Text="流程图绘制" FontSize="18" FontWeight="Bold" Foreground="#0F172A" Margin="0,0,0,10"/>
+                                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
+                                            <ItemsControl ItemsSource="{Binding AutoProgramFlowNodes}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <StackPanel/>
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <StackPanel Margin="0,0,0,10" HorizontalAlignment="Center">
+                                                            <Border Width="520" Background="{Binding Fill}" BorderBrush="#CBD5E1" BorderThickness="1" CornerRadius="12" Padding="14">
+                                                                <Grid>
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="100"/>
+                                                                        <ColumnDefinition Width="*"/>
+                                                                        <ColumnDefinition Width="90"/>
+                                                                    </Grid.ColumnDefinitions>
+                                                                    <StackPanel Grid.Column="0">
+                                                                        <TextBlock Text="{Binding StepCode}" FontWeight="Bold" Foreground="#1E3A8A"/>
+                                                                        <TextBlock Text="{Binding NextStep, StringFormat=流向 {0}}" Foreground="#64748B" Margin="0,4,0,0"/>
+                                                                    </StackPanel>
+                                                                    <StackPanel Grid.Column="1" Margin="12,0">
+                                                                        <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold" Foreground="#0F172A"/>
+                                                                        <TextBlock Text="{Binding Action}" Foreground="#475569" Margin="0,6,0,0" TextWrapping="Wrap"/>
+                                                                    </StackPanel>
+                                                                    <Border Grid.Column="2" Background="#FFFFFF" BorderBrush="#BFDBFE" BorderThickness="1" CornerRadius="16" Padding="10,4" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                                                        <TextBlock Text="{Binding NextStep}" Foreground="#2563EB" FontWeight="SemiBold"/>
+                                                                    </Border>
+                                                                </Grid>
+                                                            </Border>
+                                                            <materialDesign:PackIcon Kind="ArrowDownThin" Width="26" Height="26" Foreground="#94A3B8" Margin="0,6,0,0"/>
+                                                        </StackPanel>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </ScrollViewer>
+                                    </Grid>
+                                </Border>
+                                <Border Grid.Row="1" Style="{StaticResource CardBorderStyle}" Padding="12" Height="300" MinHeight="300">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="*"/>
+                                        </Grid.RowDefinitions>
+                                        <Grid Margin="0,0,0,10" Background="Transparent">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="程序预览" FontSize="18" FontWeight="Bold" Foreground="#0F172A" VerticalAlignment="Center"/>
+                                            <ComboBox Grid.Column="2" Width="220" ItemsSource="{Binding GeneratedAutoPrograms}" SelectedItem="{Binding SelectedGeneratedAutoProgram}" DisplayMemberPath="DisplayName" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                            <StackPanel Grid.Column="3" Orientation="Horizontal">
+                                                <Button Content="复制当前文件" Click="CopyCurrentAutoProgramButton_Click" Background="#E2E8F0" Foreground="#0F172A" BorderBrush="#CBD5E1" Padding="8,4" Margin="0,0,8,0"/>
+                                                <Button Content="打开当前文件" Command="{Binding OpenGeneratedIoFileCommand}" CommandParameter="{Binding SelectedGeneratedAutoProgram}" Background="#E2E8F0" Foreground="#0F172A" BorderBrush="#CBD5E1" Padding="8,4"/>
+                                            </StackPanel>
+                                        </Grid>
+                                        <TextBox Grid.Row="1" Text="{Binding SelectedGeneratedAutoProgramContent, Mode=OneWay}" IsReadOnly="True" TextWrapping="NoWrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" FontFamily="Consolas" Background="#F8FAFC" BorderBrush="#D7DFEA" Foreground="#0F172A"/>
+                                    </Grid>
+                                </Border>
+                            </Grid>
+                        </Grid>
                     </Grid>
+                    </ScrollViewer>
                 </TabItem>
             </TabControl>
         </Grid>
 
-        <Border Grid.Row="2" Grid.ColumnSpan="2" Background="#111827" BorderBrush="#1F2937" BorderThickness="1,1,0,0" Padding="12,6">
+        <Border Grid.Row="2" Grid.ColumnSpan="2" Background="#FFFFFF" BorderBrush="#D7DFEA" BorderThickness="1,1,0,0" Padding="12,6">
             <DockPanel>
                 <WrapPanel>
-                    <Border Background="#7C3AED" CornerRadius="12" Padding="10,4" Margin="0,0,10,0">
-                        <TextBlock Text="{Binding DesignerModeText}" Foreground="White" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                    <Border Background="#EEF2FF" BorderBrush="#C7D2FE" BorderThickness="1" CornerRadius="12" Padding="10,4" Margin="0,0,10,0">
+                            <TextBlock Text="{Binding DesignerModeText}" Foreground="#4338CA" FontWeight="SemiBold" VerticalAlignment="Center"/>
                     </Border>
-                    <Border Background="#065F46" CornerRadius="12" Padding="10,4" Margin="0,0,10,0">
-                        <TextBlock Text="{Binding CurrentRoleText}" Foreground="White" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                    <Border Background="#ECFDF5" BorderBrush="#A7F3D0" BorderThickness="1" CornerRadius="12" Padding="10,4" Margin="0,0,10,0">
+                            <TextBlock Text="{Binding CurrentRoleText}" Foreground="#047857" FontWeight="SemiBold" VerticalAlignment="Center"/>
                     </Border>
                     <TextBlock Text="{Binding SystemMessage}" Foreground="White" VerticalAlignment="Center"/>
                 </WrapPanel>
-                <TextBlock DockPanel.Dock="Right" Text="C# / WPF / OPC UA / HMI Designer" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                    <TextBlock DockPanel.Dock="Right" Text="C# / WPF / OPC UA / HMI Designer" Foreground="#64748B" VerticalAlignment="Center"/>
             </DockPanel>
         </Border>
     </Grid>

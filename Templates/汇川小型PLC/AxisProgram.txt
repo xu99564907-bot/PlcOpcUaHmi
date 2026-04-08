@@ -1,0 +1,13 @@
+FB_Axis_Instance[{Index}](
+	ioAxis:= Axis_{Index},
+	ioAxisCtrl:= {DriveDb}_DriveControl.AxisCtrl[{Index}],
+	iName:={Name},
+	iEstop:= {ControlDb}_Control.Machine.EmgSafetyRelay,
+	iSafeDoor:= {ControlDb}_Control.Machine.EmgSafetyRelay,
+	iLightCurtain:= {ControlDb}_Control.Machine.LightCurtainRelay,
+	iMode:= {ControlDb}_Control.Mode,
+	iSpeed:= {ControlDb}_Control.Machine.Speed,
+	iIntermediateStop:= {IntermediateStop},
+	iIC_Home:= {IC_Home},
+	iIC_ABS:= {IC_ABS},
+	iIC_JOG:= {IC_JOG});

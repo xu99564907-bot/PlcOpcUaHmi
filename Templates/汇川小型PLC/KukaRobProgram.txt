@@ -1,0 +1,10 @@
+FB_Kuka_V1_Instance[{Index}](
+	ioKuka:= {DriveDb}_DriveControl.Kuka[{Index}],
+	iMode:= {ControlDb}_Control.Mode,
+	iName:={Name},
+	iDstAdr:='{IP}',
+	iDstTcpPort:={Port},
+	iSpeed:={ControlDb}_Control.Machine.Speed,
+	iProductType:={DriveDb}_Recipe.RecipeNum,
+	iClock:=CPU_Clock.Clock_10ms_R,
+	oTimeOut=> );

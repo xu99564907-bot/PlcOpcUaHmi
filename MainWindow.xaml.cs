@@ -193,6 +193,16 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.S)
+        {
+            if (vm.SaveIoTableToSourceCommand.CanExecute(null))
+            {
+                vm.SaveIoTableToSourceCommand.Execute(null);
+                e.Handled = true;
+                return;
+            }
+        }
+
         if (e.Key == Key.Delete)
         {
             vm.RemoveSelectedDesignerElementCommand.Execute(null);
@@ -345,9 +355,12 @@ public partial class MainWindow : Window
         const string message =
             "文件 > 导入 XML 变量：导入 XML 变量表\r\n" +
             "文件 > 导入 CSV 变量：导入 CSV 变量表\r\n" +
+            "文件 > 导入 IO 表：导入四列表头的 IO 地址/注释表\r\n" +
+            "文件 > 生成 IO 程序：按 AAS-PLC 思路生成 DB_IO、DI_ACT_Comment、DO_ACT_Comment\r\n" +
             "文件 > 导入流程 CSV：导入流程分析数据\r\n" +
             "窗口：运行/设计态切换、最大化、还原、置顶\r\n" +
             "帮助：查看 README 和关于信息\r\n" +
+            "设计器：右侧已增加 IO 导入、生成和结果预览区\r\n" +
             "监视画面：可直接浏览 OPC UA 节点并加入变量表";
 
         MessageBox.Show(this, message, "使用说明", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -389,6 +402,49 @@ public partial class MainWindow : Window
         window.ShowDialog();
     }
 
+    private void OpenCylinderSettingsButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is MainViewModel vm)
+        {
+            vm.SelectedCylinderSettingsBlock = (sender as FrameworkElement)?.DataContext as Models.ManualCylinderBlockItem
+                ?? vm.ManualCylinderBlocks.FirstOrDefault();
+        }
+
+        var window = new CylinderSettingsWindow
+        {
+            Owner = this,
+            DataContext = DataContext
+        };
+        window.ShowDialog();
+    }
+
+    private async void ConnectButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        await vm.ConnectCommand.ExecuteAsync(null);
+        MessageBox.Show(
+            this,
+            vm.SystemMessage,
+            "PLC 连接结果",
+            MessageBoxButton.OK,
+            vm.CommunicationStatus == "已连接" ? MessageBoxImage.Information : MessageBoxImage.Error);
+    }
+
+    private async void DisconnectButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        await vm.DisconnectCommand.ExecuteAsync(null);
+        MessageBox.Show(this, vm.SystemMessage, "PLC 连接结果", MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
     private void OpcUaBrowserTreeView_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
     {
         if (DataContext is MainViewModel vm && e.NewValue is OpcUaBrowseNode node && !node.IsPlaceholder)
@@ -408,6 +464,127 @@ public partial class MainWindow : Window
         {
             await vm.ExpandOpcUaBrowserNodeCommand.ExecuteAsync(node);
         }
+    }
+
+    private void IoPreviewHeader_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount != 2)
+        {
+            return;
+        }
+
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        var previewGrid = new DataGrid
+        {
+            AutoGenerateColumns = false,
+            CanUserAddRows = false,
+            CanUserSortColumns = false,
+            IsReadOnly = false,
+            HeadersVisibility = DataGridHeadersVisibility.Column,
+            Background = System.Windows.Media.Brushes.White,
+            Foreground = System.Windows.Media.Brushes.Black,
+            BorderBrush = System.Windows.Media.Brushes.LightGray,
+            ItemsSource = vm.IoTableRows
+        };
+        previewGrid.Columns.Add(new DataGridTextColumn { Header = "输入地址", Binding = new System.Windows.Data.Binding("InputAddress"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
+        previewGrid.Columns.Add(new DataGridTextColumn { Header = "输入注释", Binding = new System.Windows.Data.Binding("InputComment"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
+        previewGrid.Columns.Add(new DataGridTextColumn { Header = "输出地址", Binding = new System.Windows.Data.Binding("OutputAddress"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
+        previewGrid.Columns.Add(new DataGridTextColumn { Header = "输出注释", Binding = new System.Windows.Data.Binding("OutputComment"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
+        ShowPreviewWindow("IO 表预览", previewGrid, 1200, 760);
+    }
+
+    private void IoProgramPreviewHeader_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount != 2)
+        {
+            return;
+        }
+
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        var previewTextBox = new TextBox
+        {
+            Text = vm.SelectedGeneratedIoProgramContent,
+            IsReadOnly = true,
+            TextWrapping = TextWrapping.NoWrap,
+            AcceptsReturn = true,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+            FontFamily = new System.Windows.Media.FontFamily("Consolas"),
+            Background = System.Windows.Media.Brushes.White,
+            Foreground = System.Windows.Media.Brushes.Black,
+            BorderBrush = System.Windows.Media.Brushes.LightGray
+        };
+
+        var title = vm.SelectedGeneratedIoProgram?.DisplayName is { Length: > 0 } displayName
+            ? $"程序预览 - {displayName}"
+            : "程序预览";
+        ShowPreviewWindow(title, previewTextBox, 1100, 760);
+    }
+
+    private void CopyCurrentIoProgramButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        var content = vm.SelectedGeneratedIoProgramContent;
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            MessageBox.Show(this, "当前没有可复制的程序内容。", "复制程序", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        Clipboard.SetText(content);
+        MessageBox.Show(this, "当前程序内容已复制到剪贴板。", "复制程序", MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    private void CopyCurrentAutoProgramButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        var content = vm.SelectedGeneratedAutoProgramContent;
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            MessageBox.Show(this, "当前没有可复制的自动程序内容。", "复制程序", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        Clipboard.SetText(content);
+        MessageBox.Show(this, "当前自动程序内容已复制到剪贴板。", "复制程序", MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    private void ShowPreviewWindow(string title, FrameworkElement content, double width, double height)
+    {
+        var window = new Window
+        {
+            Owner = this,
+            Title = title,
+            Width = width,
+            Height = height,
+            MinWidth = 900,
+            MinHeight = 600,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Background = System.Windows.Media.Brushes.White,
+            Content = new Border
+            {
+                Padding = new Thickness(12),
+                Background = System.Windows.Media.Brushes.White,
+                Child = content
+            }
+        };
+        window.ShowDialog();
     }
 
     private static string? ResolveReadmePath()

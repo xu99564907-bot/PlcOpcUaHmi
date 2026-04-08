@@ -1,11 +1,13 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.ComponentModel;
 using System.Windows.Data;
@@ -23,6 +25,8 @@ public partial class MainViewModel : ObservableObject
     private readonly OpcUaService _opcUaService = new();
     private readonly CsvImportService _csvImportService = new();
     private readonly XmlImportService _xmlImportService = new();
+    private readonly IoTableImportService _ioTableImportService = new();
+    private readonly IoProgramGenerationService _ioProgramGenerationService = new();
     private readonly ConfigurationService _configurationService = new();
     private readonly DesignerLayoutService _designerLayoutService = new();
     private readonly DesignerProjectService _designerProjectService = new();
@@ -33,7 +37,16 @@ public partial class MainViewModel : ObservableObject
     private readonly TrendHistoryService _trendHistoryService = new();
     private readonly DispatcherTimer _subscriptionTimer;
     private readonly Dictionary<string, AlarmRecord> _activeAlarmMap = new(StringComparer.OrdinalIgnoreCase);
+    private string _currentIoSourceFilePath = string.Empty;
+    private int _currentIoSourceEncodingCodePage = 65001;
+    private List<string> _currentIoSourceHeaders = new();
+    private readonly List<IoTableRow> _importedIoRowsSnapshot = new();
+    private readonly List<IoTableRow> _lastIoSavedSnapshot = new();
+    private string _lastIoSavedFilePath = string.Empty;
+    private string _lastIoHistoryFilePath = string.Empty;
+    private DateTime _lastIoSaveAt = DateTime.MinValue;
     private DesignerElement? _clipboardElement;
+    private DesignerElement? _designerSelectionSubscription;
     private bool _isRefreshing;
 
     public event Action<string, string, string>? PopupRequested;
@@ -51,10 +64,13 @@ public partial class MainViewModel : ObservableObject
     public ObservableCollection<DesignerPage> DesignerPages { get; } = new();
     public ObservableCollection<string> ToolboxItems { get; } = new() { "Button", "Indicator", "Label", "ValueDisplay", "AlarmBanner", "Motor", "Cylinder", "Axis", "Robot", "Stopper", "PageButton" };
     public ObservableCollection<string> RuntimeTemplates { get; } = new() { "主界面", "监控画面", "手动画面", "参数设定", "报警画面" };
+    public ObservableCollection<string> CommunicationProtocolOptions { get; } = new() { "OPC UA", "Modbus TCP", "MC Protocol" };
+    public ObservableCollection<string> DesignerActionOptions { get; } = new() { "", "鍙橀噺缈昏浆", "缃綅", "澶嶄綅", "鑴夊啿", "椤甸潰璺宠浆", "姘旂几鍥炲師", "姘旂几鍔ㄧ偣" };
+    public ObservableCollection<string> DesignerNavigationTargetOptions { get; } = new() { "主界面", "监控", "手动操作", "参数设定", "配方管理", "报警画面", "登录", "设计器" };
     public ObservableCollection<ParameterItem> Parameters { get; } = new();
     public ObservableCollection<UserRole> Roles { get; } = new() { UserRole.Operator, UserRole.Engineer, UserRole.Administrator };
-    public ObservableCollection<string> MonitorCategoryOptions { get; } = new() { "全部", "Production", "Alarm", "Axis", "Motor", "Cylinder", "Robot", "IO" };
-    public ObservableCollection<string> AlarmLevelOptions { get; } = new() { "全部", "Alarm", "Error", "Warning", "Info" };
+    public ObservableCollection<string> MonitorCategoryOptions { get; } = new() { "鍏ㄩ儴", "Production", "Alarm", "Axis", "Motor", "Cylinder", "Robot", "IO" };
+    public ObservableCollection<string> AlarmLevelOptions { get; } = new() { "鍏ㄩ儴", "Alarm", "Error", "Warning", "Info" };
     public ObservableCollection<string> AlarmTimeRangeOptions { get; } = new() { "全部", "本班次", "今日", "近7天" };
     public ObservableCollection<AlarmRecord> AlarmStatistics { get; } = new();
     public ObservableCollection<OperationAuditRecord> OperationAudits { get; } = new();
@@ -64,18 +80,25 @@ public partial class MainViewModel : ObservableObject
     public ObservableCollection<ParameterItem> ActiveRecipeParameters { get; } = new();
     public ObservableCollection<TrendSample> TrendSamples { get; } = new();
     public ObservableCollection<OpcUaBrowseNode> OpcUaBrowserNodes { get; } = new();
-    public ObservableCollection<string> FlowFilterOptions { get; } = new() { "全部", "主线1", "主线2", "主线3" };
+    public ObservableCollection<IoTableRow> IoTableRows { get; } = new();
+    public ObservableCollection<ManualCylinderBlockItem> ManualCylinderBlocks { get; } = new();
+    public ObservableCollection<GeneratedProgramArtifact> GeneratedIoPrograms { get; } = new();
+    public ObservableCollection<AutoProgramFlowNode> AutoProgramFlowNodes { get; } = new();
+    public ObservableCollection<GeneratedProgramArtifact> GeneratedAutoPrograms { get; } = new();
+    public ObservableCollection<string> FlowFilterOptions { get; } = new() { "鍏ㄩ儴", "涓荤嚎1", "涓荤嚎2", "涓荤嚎3" };
     public ObservableCollection<string> FlowTimeRangeOptions { get; } = new() { "全部", "本班次", "今日", "近7天" };
-    public ObservableCollection<string> FlowStepFilterOptions { get; } = new() { "全部", "10", "20", "30", "40", "50", "60" };
+    public ObservableCollection<string> FlowStepFilterOptions { get; } = new() { "鍏ㄩ儴", "10", "20", "30", "40", "50", "60" };
+    public ObservableCollection<string> IoPlcTemplateOptions { get; } = new() { "姹囧窛涓瀷PLC" };
 
     [ObservableProperty] private OpcUaConnectionOptions connection = new();
     [ObservableProperty] private int selectedTabIndex;
-    [ObservableProperty] private string currentMonitorSubSection = "输入输出监控";
-    [ObservableProperty] private string currentManualSubSection = "气缸";
-    [ObservableProperty] private string currentParameterSubSection = "系统参数设定";
-    [ObservableProperty] private string currentAlarmSubSection = "当前报警";
+    [ObservableProperty] private string currentMonitorSubSection = "杈撳叆杈撳嚭鐩戞帶";
+[ObservableProperty] private string currentManualSubSection = "气缸";
+    [ObservableProperty] private string currentParameterSubSection = "绯荤粺鍙傛暟璁惧畾";
+    [ObservableProperty] private string currentAlarmSubSection = "褰撳墠鎶ヨ";
+[ObservableProperty] private string currentDesignerSubSection = "画布设计";
     [ObservableProperty] private string currentSection = "主界面";
-    [ObservableProperty] private string systemMessage = "系统就绪";
+    [ObservableProperty] private string systemMessage = "绯荤粺灏辩华";
     [ObservableProperty] private string loginUser = "操作员";
     [ObservableProperty] private string manualWriteTagName = string.Empty;
     [ObservableProperty] private string manualWriteValue = string.Empty;
@@ -111,19 +134,45 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private string loginPassword = string.Empty;
     [ObservableProperty] private string axisJogDistance = "10";
     [ObservableProperty] private string axisTargetPosition = "100";
-    [ObservableProperty] private string selectedMonitorCategory = "全部";
-    [ObservableProperty] private string selectedAlarmLevel = "全部";
-    [ObservableProperty] private string selectedAlarmTimeRange = "全部";
+    [ObservableProperty] private bool cylinderHomeMaskEnabled;
+    [ObservableProperty] private bool cylinderWorkMaskEnabled;
+    [ObservableProperty] private string cylinderConfiguredName = string.Empty;
+    [ObservableProperty] private string cylinderHomeCommandTagName = string.Empty;
+    [ObservableProperty] private string cylinderWorkCommandTagName = string.Empty;
+    [ObservableProperty] private string cylinderHomeSensorTagName = string.Empty;
+    [ObservableProperty] private string cylinderWorkSensorTagName = string.Empty;
+    [ObservableProperty] private string cylinderHomeInterlockTagName = string.Empty;
+    [ObservableProperty] private string cylinderWorkInterlockTagName = string.Empty;
+    [ObservableProperty] private ManualCylinderBlockItem? selectedCylinderSettingsBlock;
+    [ObservableProperty] private string cylinderAlarmTimeSetting = "2.0";
+    [ObservableProperty] private string cylinderHomeDelaySetting = "0.3";
+    [ObservableProperty] private string cylinderWorkDelaySetting = "0.3";
+    [ObservableProperty] private string cylinderCurrentActionTimeDisplay = "--";
+    [ObservableProperty] private string cylinderLastActionTimeDisplay = "--";
+    [ObservableProperty] private int cylinderActionCount;
+    [ObservableProperty] private string selectedMonitorCategory = "鍏ㄩ儴";
+    [ObservableProperty] private string selectedAlarmLevel = "鍏ㄩ儴";
+    [ObservableProperty] private string selectedAlarmTimeRange = "鍏ㄩ儴";
     [ObservableProperty] private bool showOnlyFocusAlarms;
     [ObservableProperty] private double startHoldProgress;
     [ObservableProperty] private int currentFlowStepNo;
-    [ObservableProperty] private string currentFlowComment = "自动流程待命";
-    [ObservableProperty] private string selectedRecipeName = "产品A";
-    [ObservableProperty] private string selectedFlowFilter = "全部";
-    [ObservableProperty] private string selectedFlowTimeRange = "全部";
-    [ObservableProperty] private string selectedFlowStepFilter = "全部";
+    [ObservableProperty] private string currentFlowComment = "鑷姩娴佺▼寰呭懡";
+    [ObservableProperty] private string selectedRecipeName = "浜у搧A";
+    [ObservableProperty] private string selectedFlowFilter = "鍏ㄩ儴";
+    [ObservableProperty] private string selectedFlowTimeRange = "鍏ㄩ儴";
+    [ObservableProperty] private string selectedFlowStepFilter = "鍏ㄩ儴";
     [ObservableProperty] private bool showOnlyAbnormalFlow;
     [ObservableProperty] private string jumpAlarmKeyword = string.Empty;
+    [ObservableProperty] private string selectedIoPlcTemplate = "姹囧窛涓瀷PLC";
+    [ObservableProperty] private string ioOperationNumber = "OP10";
+    [ObservableProperty] private int ioSaveIntervalMinutes = 5;
+    [ObservableProperty] private string ioImportSummary = "尚未导入 IO 表";
+    [ObservableProperty] private string generatedIoOutputDirectory = string.Empty;
+    [ObservableProperty] private GeneratedProgramArtifact? selectedGeneratedIoProgram;
+    [ObservableProperty] private string autoProgramName = "主装配流程";
+    [ObservableProperty] private string autoProgramStation = "Station1";
+    [ObservableProperty] private string generatedAutoOutputDirectory = string.Empty;
+    [ObservableProperty] private GeneratedProgramArtifact? selectedGeneratedAutoProgram;
 
     [ObservableProperty] private OpcUaBrowseNode? selectedOpcUaBrowseNode;
     [ObservableProperty] private string selectedOpcUaNodeValue = "--";
@@ -131,20 +180,37 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private string selectedOpcUaNodeTimestamp = "--";
     [ObservableProperty] private string opcUaBrowserStatus = "连接 OPC UA 后，可在这里浏览服务器节点。";
 
+    public ICollectionView ManualCylinderBlocksView { get; }
+    public IEnumerable<ManualCylinderBlockItem> ManualCylinderBlockCards =>
+        ManualCylinderBlocks
+            .GroupBy(item => item.CylinderIndex)
+            .Select(group => group.OrderBy(item => item.DisplayOrder).First())
+            .OrderBy(item => item.DisplayOrder)
+            .ThenBy(item => item.CylinderIndex);
+
     public MainViewModel()
     {
         BuildNavigation();
         DesignerElements.CollectionChanged += DesignerElements_CollectionChanged;
         DesignerPages.CollectionChanged += DesignerPages_CollectionChanged;
         Parameters.CollectionChanged += Parameters_CollectionChanged;
+        IoTableRows.CollectionChanged += (_, _) => RefreshIoGenerationSummary();
+        ManualCylinderBlocks.CollectionChanged += ManualCylinderBlocks_CollectionChanged;
+        GeneratedIoPrograms.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasGeneratedIoPrograms));
+        GeneratedAutoPrograms.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasGeneratedAutoPrograms));
+        AutoProgramFlowNodes.CollectionChanged += (_, _) => RefreshAutoProgramSummary();
         AlarmHistory.CollectionChanged += (_, _) => RefreshAlarmStatistics();
         CurrentAlarms.CollectionChanged += (_, _) => RefreshAlarmStatistics();
+        ManualCylinderBlocksView = CollectionViewSource.GetDefaultView(ManualCylinderBlocks);
+        ManualCylinderBlocksView.SortDescriptions.Add(new SortDescription(nameof(ManualCylinderBlockItem.DisplayOrder), ListSortDirection.Ascending));
+        ManualCylinderBlocksView.SortDescriptions.Add(new SortDescription(nameof(ManualCylinderBlockItem.CylinderIndex), ListSortDirection.Ascending));
         _subscriptionTimer = new DispatcherTimer();
         _subscriptionTimer.Interval = TimeSpan.FromMilliseconds(RefreshIntervalMs);
         _subscriptionTimer.Tick += async (_, _) => await AutoRefreshTickAsync();
         _opcUaService.TagValueChanged += OpcUaService_TagValueChanged;
         SeedDemoData();
         SeedDesignerData();
+        EnsureDefaultManualCylinderBlock();
         SeedParameters();
         ParametersView.Filter = FilterParameterItem;
         RefreshParameterPermissions();
@@ -155,6 +221,8 @@ public partial class MainViewModel : ObservableObject
         SeedTrendSamples();
         RefreshFlowView();
         RefreshFlowIssueSummaries();
+        SeedAutoProgramFlow();
+        _ = InitializeAsync();
     }
 
     public ICollectionView MonitorTagsView => CollectionViewSource.GetDefaultView(Tags);
@@ -163,6 +231,20 @@ public partial class MainViewModel : ObservableObject
     public ICollectionView FlowStepsView => CollectionViewSource.GetDefaultView(FlowSteps);
     public string CommunicationStatus => _opcUaService.ConnectionStatus;
     public int TagCount => Tags.Count;
+
+    private async Task InitializeAsync()
+    {
+        try
+        {
+            await LoadConfigAsync();
+            await LoadParametersAsync();
+        }
+        catch (Exception ex)
+        {
+            SystemMessage = $"启动加载配置失败：{ex.Message}";
+            AddLog("閰嶇疆", SystemMessage, "Error");
+        }
+    }
     public int AlarmCount => CurrentAlarms.Count(a => a.Active);
     public string DesignerModeText => IsRuntimeMode ? "运行态" : "设计态";
     public bool HasClipboard => _clipboardElement is not null;
@@ -177,7 +259,7 @@ public partial class MainViewModel : ObservableObject
         UserRole.Operator => "操作员",
         UserRole.Engineer => "工程师",
         UserRole.Administrator => "管理员",
-        _ => "未知"
+        _ => "鏈煡"
     };
     public int ActiveAlarmCount => CurrentAlarms.Count(a => a.Active);
     public int UnacknowledgedAlarmCount => CurrentAlarms.Count(a => a.Active && !a.Acknowledged);
@@ -197,35 +279,56 @@ public partial class MainViewModel : ObservableObject
     public double OeeRate => Math.Round(AvailabilityRate * PerformanceRate * QualityRate / 10000.0, 1);
     public string DeviceStatusText => ActiveAlarmCount > 0 ? "报警中" : GetBoolTag("Device_Start") ? "运行中" : "待机";
     public string ShiftStatusText => ShiftProductionCount >= TargetCount ? "班次达成" : "班次生产中";
-    public string CurrentRecipeText => string.IsNullOrWhiteSpace(SelectedRecipeName) ? (GetTagValue("Recipe_Name") == "--" ? "产品A" : GetTagValue("Recipe_Name")) : SelectedRecipeName;
+    public string CurrentRecipeText => string.IsNullOrWhiteSpace(SelectedRecipeName) ? (GetTagValue("Recipe_Name") == "--" ? "浜у搧A" : GetTagValue("Recipe_Name")) : SelectedRecipeName;
     public string CurrentOrderText => GetTagValue("WorkOrder_No") == "--" ? "WO-20260404-01" : GetTagValue("WorkOrder_No");
-    public string MotorStatusText => GetBoolTag("Motor1_Fault") ? "故障" : GetBoolTag("Y_RunLamp") ? "运行" : "停止";
-    public string CylinderStatusText => GetBoolTag("Cylinder_FwdLS") ? "前到位" : GetBoolTag("Cylinder_BwdLS") ? "后到位" : "切换中";
+    public string MotorStatusText => GetBoolTag("Motor1_Fault") ? "鏁呴殰" : GetBoolTag("Y_RunLamp") ? "杩愯" : "鍋滄";
+    public string CylinderStatusText => CylinderForwardActive ? "前到位" : CylinderBackwardActive ? "后到位" : "切换中";
+    public string CylinderDisplayName => string.IsNullOrWhiteSpace(CylinderConfiguredName) ? GetImportedCylinderDisplayName() : CylinderConfiguredName;
+    public string CylinderHomeMaskButtonText => CylinderHomeMaskEnabled ? "鍘熺偣灞忚斀锛氬紑" : "鍘熺偣灞忚斀锛氬叧";
+    public string CylinderWorkMaskButtonText => CylinderWorkMaskEnabled ? "鍔ㄧ偣灞忚斀锛氬紑" : "鍔ㄧ偣灞忚斀锛氬叧";
+    public bool CylinderForwardActive => GetCylinderBool(CylinderWorkSensorTagName, ".Status.InWork", ".DevStatus.Sensor_Work", "Cylinder_FwdLS");
+    public bool CylinderBackwardActive => GetCylinderBool(CylinderHomeSensorTagName, ".Status.InHome", ".DevStatus.Sensor_Home", "Cylinder_BwdLS");
+    public bool CylinderOutputActive => GetCylinderBool(CylinderWorkCommandTagName, ".DevStatus.Valve_Work", ".Cmd.ManuToWork", "Cylinder_Extend");
+    public string CylinderOutputText => CylinderOutputActive ? "浼稿嚭鍛戒护鏈夋晥" : "鍥炵缉寰呭懡";
+    public string CylinderCurrentStateText => ResolveCylinderCurrentStateText();
+    public string CylinderActionHint => CylinderForwardActive ? "当前在前到位，适合执行回原或松开动作" : CylinderBackwardActive ? "当前在后到位，适合执行伸出或夹紧动作" : "气缸处于中间状态，等待动作完成后再切换";
+    public bool CylinderInterlockBaseReady => !GetBoolTag("Alarm_EStop") && (!GetBoolTag("Y_RunLamp") || AllowManualCylinderWhenAuto) && (CylinderForwardActive || CylinderBackwardActive);
+    public bool CylinderHomeInterlockActive => GetCylinderBool(CylinderHomeInterlockTagName, ".Parm.IC_Home", fallbackValue: CylinderInterlockBaseReady && CylinderForwardActive);
+    public bool CylinderMoveInterlockActive => GetCylinderBool(CylinderWorkInterlockTagName, ".Parm.IC_Work", fallbackValue: CylinderInterlockBaseReady && CylinderBackwardActive);
+    public string CylinderHomeInterlockText => CylinderHomeInterlockActive ? "允许回原" : GetCylinderBool(".Parm.IC_Home", fallbackValue: true) ? (CylinderBackwardActive ? "已在原点" : "回原互锁未满足") : "回原互锁未满足";
+    public string CylinderMoveInterlockText => CylinderMoveInterlockActive ? "允许动点" : GetCylinderBool(".Parm.IC_Work", fallbackValue: true) ? (CylinderForwardActive ? "已在动点" : "动点互锁未满足") : "动点互锁未满足";
+    public string CylinderInterlockHint => GetBoolTag("Alarm_EStop")
+        ? "鎬ュ仠鏈浣嶏紝绂佹鎿嶄綔姘旂几"
+        : GetBoolTag("Y_RunLamp") && !AllowManualCylinderWhenAuto
+            ? "璁惧鑷姩杩愯涓紝褰撳墠鑱旈攣绂佹鎵嬪姩姘旂几"
+            : AllowManualCylinderWhenAuto
+                ? "自动运行时允许手动切换气缸"
+                : "褰撳墠鍏佽鎵嬪姩鎿嶄綔姘旂几";
     public string AxisStatusText => GetBoolTag("Axis1_Alarm") ? "报警" : GetBoolTag("Axis1_Enable") ? $"使能 / 位置 {GetTagValue("Axis1_Pos")}" : "未使能";
-    public string RobotStatusText => GetBoolTag("Robot_Pause") ? "暂停" : GetBoolTag("Robot_Run") ? "运行" : "待机";
+    public string RobotStatusText => GetBoolTag("Robot_Pause") ? "鏆傚仠" : GetBoolTag("Robot_Run") ? "杩愯" : "寰呮満";
     public bool IsDebugMode => GetBoolTag("Mode_Debug");
     public bool IsDryRunMode => GetBoolTag("Mode_DryRun");
     public bool IsBypassStationMode => GetBoolTag("Mode_BypassStation");
     public bool IsManualMode => GetBoolTag("Mode_Manual");
     public bool IsAutoMode => GetBoolTag("Mode_Auto");
-    public string RunModeSummary => IsManualMode ? "人工模式" : IsAutoMode ? "自动模式" : "未选择";
+    public string RunModeSummary => IsManualMode ? "浜哄伐妯″紡" : IsAutoMode ? "鑷姩妯″紡" : "鏈€夋嫨";
     public string StartStopSummary => GetBoolTag("Device_Start") ? "设备已启动" : "设备已停止";
     public bool StartModeReady => IsManualMode || IsAutoMode;
     public bool StartAlarmReady => ActiveAlarmCount == 0;
     public bool StartInterlockReady => StartModeReady && StartAlarmReady;
-    public string ProductionTrendSummary => $"班次 {ShiftProductionCount} / 日累计 {DailyProductionCount} / 目标 {TargetCount}";
+    public string ProductionTrendSummary => $"鐝 {ShiftProductionCount} / 鏃ョ疮璁?{DailyProductionCount} / 鐩爣 {TargetCount}";
     public string CurrentFlowStepText => $"STEP {CurrentFlowStepNo:000}";
     public string SelectedFlowSummary => SelectedFlowFilter == "全部" ? "多流程并行视图" : $"当前流程：{SelectedFlowFilter}";
     public string OeeTrendSummary => $"A {AvailabilityRate:F1}% / P {PerformanceRate:F1}% / Q {QualityRate:F1}% / OEE {OeeRate:F1}%";
-    public string AlarmTrendSummary => $"活动 {ActiveAlarmCount} / 未确认 {UnacknowledgedAlarmCount} / 重点 {AlarmStatistics.Count(a => a.Count >= 3 || a.Active)}";
-    public string TimeAxisSummary => $"采样点：最近 6 个周期 / 时间轴：{DateTime.Now.AddMinutes(-25):HH:mm} - {DateTime.Now:HH:mm}";
-    public bool AllowManualCylinderWhenAuto => GetBoolParameter("自动运行允许手动气缸", false);
-    public bool AllowManualStopperWhenAuto => GetBoolParameter("自动运行允许手动挡停", false);
-    public bool AllowRobotResetWhenRunning => GetBoolParameter("机械手运行时允许复位", false);
-    public bool AllowAxisMoveWhenAlarm => GetBoolParameter("轴报警时允许运动", false);
+    public string AlarmTrendSummary => $"娲诲姩 {ActiveAlarmCount} / 鏈‘璁?{UnacknowledgedAlarmCount} / 閲嶇偣 {AlarmStatistics.Count(a => a.Count >= 3 || a.Active)}";
+    public string TimeAxisSummary => $"閲囨牱鐐癸細鏈€杩?6 涓懆鏈?/ 鏃堕棿杞达細{DateTime.Now.AddMinutes(-25):HH:mm} - {DateTime.Now:HH:mm}";
+    public bool AllowManualCylinderWhenAuto => GetBoolParameter("鑷姩杩愯鍏佽鎵嬪姩姘旂几", false);
+    public bool AllowManualStopperWhenAuto => GetBoolParameter("鑷姩杩愯鍏佽鎵嬪姩鎸″仠", false);
+    public bool AllowRobotResetWhenRunning => GetBoolParameter("鏈烘鎵嬭繍琛屾椂鍏佽澶嶄綅", false);
+    public bool AllowAxisMoveWhenAlarm => GetBoolParameter("杞存姤璀︽椂鍏佽杩愬姩", false);
     public double EstimatedDowntimeMinutes => AlarmStatistics.Where(a => a.Active || a.Count >= 3).Sum(a => a.Level switch { "Alarm" => a.Count * 12, "Error" => a.Count * 8, "Warning" => a.Count * 4, _ => a.Count * 2 });
     public int EstimatedProductionLoss => (int)Math.Round((EstimatedDowntimeMinutes / 60.0) * GetIntTag("Throughput_Hourly", 380));
-    public string FocusAlarmHint => AlarmStatistics.FirstOrDefault()?.Message ?? "当前暂无重点报警";
+    public string FocusAlarmHint => AlarmStatistics.FirstOrDefault()?.Message ?? "褰撳墠鏆傛棤閲嶇偣鎶ヨ";
     public string ProductionTrendPath => BuildSparklinePath(new double[] { Math.Max(0, ShiftProductionCount * 0.35), ShiftProductionCount * 0.5, ShiftProductionCount * 0.68, ShiftProductionCount * 0.8, ShiftProductionCount * 0.92, ShiftProductionCount });
     public string OeeTrendPath => BuildSparklinePath(new double[] { Math.Max(0, OeeRate - 9), OeeRate - 5, OeeRate - 3, OeeRate - 1, OeeRate + 1, OeeRate });
     public string AlarmTrendPath => BuildSparklinePath(new double[] { ActiveAlarmCount + 4, ActiveAlarmCount + 3, ActiveAlarmCount + 2, ActiveAlarmCount + 2, ActiveAlarmCount + 1, Math.Max(1, ActiveAlarmCount) });
@@ -234,8 +337,19 @@ public partial class MainViewModel : ObservableObject
     public string FlowRankingSummary => BuildFlowRankingSummary();
     public string CurrentMonitorTitle => CurrentMonitorSubSection;
     public string CurrentManualTitle => CurrentManualSubSection;
-    public string CurrentParameterTitle => CurrentParameterSubSection;
+    public string CurrentParameterTitle => CurrentParameterSubSection == "系统参数设定" ? "HMI变量和PLC变量绑定" : CurrentParameterSubSection;
     public string CurrentAlarmTitle => CurrentAlarmSubSection;
+    public bool HasGeneratedIoPrograms => GeneratedIoPrograms.Count > 0;
+    public string SelectedGeneratedIoProgramContent => SelectedGeneratedIoProgram?.Content ?? "生成完成后，程序预览会显示在这里。";
+    public string IoGenerationHeadline => $"PLC 模板：{SelectedIoPlcTemplate} / 工位号：{IoOperationNumber}";
+    public string IoGenerationCountSummary => $"输入 {IoTableRows.Count(r => !string.IsNullOrWhiteSpace(r.InputAddress))} 点 / 输出 {IoTableRows.Count(r => !string.IsNullOrWhiteSpace(r.OutputAddress))} 点";
+    public bool HasGeneratedAutoPrograms => GeneratedAutoPrograms.Count > 0;
+    public string SelectedGeneratedAutoProgramContent => SelectedGeneratedAutoProgram?.Content ?? "生成完成后，自动程序预览会显示在这里。";
+    public string AutoProgramHeadline => $"流程：{AutoProgramName} / 工位：{AutoProgramStation} / 步序：{AutoProgramFlowNodes.Count}";
+    public string AutoProgramSummary => AutoProgramFlowNodes.Count == 0
+        ? "灏氭湭閰嶇疆鑷姩娴佺▼鑺傜偣"
+        : $"已配置 {AutoProgramFlowNodes.Count} 个流程节点，支持绘制流程图并生成自动程序骨架。";
+    public bool CanSaveIoTable => !string.IsNullOrWhiteSpace(_currentIoSourceFilePath);
     public string CurrentNavigationGroup => ResolveNavigationGroup(CurrentSection);
     public bool IsMonitorIoPageVisible => string.Equals(CurrentMonitorSubSection, "输入输出监控", StringComparison.Ordinal);
     public bool IsMonitorProgramPageVisible => string.Equals(CurrentMonitorSubSection, "程序监控", StringComparison.Ordinal);
@@ -256,6 +370,15 @@ public partial class MainViewModel : ObservableObject
     public bool IsAlarmHistoryPageVisible => string.Equals(CurrentAlarmSubSection, "历史报警", StringComparison.Ordinal);
     public bool IsAlarmLogPageVisible => string.Equals(CurrentAlarmSubSection, "日志", StringComparison.Ordinal);
     public bool IsAlarmStatisticsPageVisible => string.Equals(CurrentAlarmSubSection, "报警统计", StringComparison.Ordinal);
+    public string CurrentDesignerTitle => CurrentDesignerSubSection;
+public bool IsDesignerCanvasPageVisible => string.Equals(CurrentDesignerSubSection, "画布设计", StringComparison.Ordinal);
+public bool IsDesignerIoProgramPageVisible => string.Equals(CurrentDesignerSubSection, "手动程序生成", StringComparison.Ordinal);
+public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSubSection, "自动程序生成", StringComparison.Ordinal);
+    public bool IsSelectedDesignerElementButtonLike => SelectedDesignerElement is not null
+        && SelectedDesignerElement.ElementType is "Button" or "Motor" or "Cylinder" or "Stopper" or "Robot" or "PageButton";
+    public bool IsSelectedDesignerElementTagBindable => SelectedDesignerElement is not null
+        && SelectedDesignerElement.ElementType is "Button" or "Indicator" or "ValueDisplay" or "AlarmBanner" or "Motor" or "Cylinder" or "Axis" or "Robot" or "Stopper";
+    public bool IsSelectedDesignerElementNavigationAction => SelectedDesignerElement?.CommandBinding == "页面跳转";
 
     partial void OnIsRuntimeModeChanged(bool value)
     {
@@ -317,6 +440,14 @@ public partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(IsAlarmStatisticsPageVisible));
     }
 
+    partial void OnCurrentDesignerSubSectionChanged(string value)
+    {
+        OnPropertyChanged(nameof(CurrentDesignerTitle));
+        OnPropertyChanged(nameof(IsDesignerCanvasPageVisible));
+        OnPropertyChanged(nameof(IsDesignerIoProgramPageVisible));
+        OnPropertyChanged(nameof(IsDesignerAutoProgramPageVisible));
+    }
+
     partial void OnCurrentSectionChanged(string value)
     {
         OnPropertyChanged(nameof(CurrentNavigationGroup));
@@ -359,6 +490,73 @@ public partial class MainViewModel : ObservableObject
     partial void OnSelectedFlowTimeRangeChanged(string value) => RefreshFlowView();
     partial void OnSelectedFlowStepFilterChanged(string value) => RefreshFlowView();
     partial void OnShowOnlyAbnormalFlowChanged(bool value) => RefreshFlowView();
+    partial void OnSelectedIoPlcTemplateChanged(string value) => OnPropertyChanged(nameof(IoGenerationHeadline));
+    partial void OnIoOperationNumberChanged(string value) => OnPropertyChanged(nameof(IoGenerationHeadline));
+    partial void OnAutoProgramNameChanged(string value) => OnPropertyChanged(nameof(AutoProgramHeadline));
+    partial void OnAutoProgramStationChanged(string value) => OnPropertyChanged(nameof(AutoProgramHeadline));
+    partial void OnCylinderHomeMaskEnabledChanged(bool value) => OnPropertyChanged(nameof(CylinderHomeMaskButtonText));
+    partial void OnCylinderWorkMaskEnabledChanged(bool value) => OnPropertyChanged(nameof(CylinderWorkMaskButtonText));
+    partial void OnCylinderConfiguredNameChanged(string value) => OnPropertyChanged(nameof(CylinderDisplayName));
+    partial void OnCylinderHomeCommandTagNameChanged(string value) => RefreshCylinderBindingProperties();
+    partial void OnCylinderWorkCommandTagNameChanged(string value) => RefreshCylinderBindingProperties();
+    partial void OnCylinderHomeSensorTagNameChanged(string value) => RefreshCylinderBindingProperties();
+    partial void OnCylinderWorkSensorTagNameChanged(string value) => RefreshCylinderBindingProperties();
+    partial void OnCylinderHomeInterlockTagNameChanged(string value) => RefreshCylinderBindingProperties();
+    partial void OnCylinderWorkInterlockTagNameChanged(string value) => RefreshCylinderBindingProperties();
+    partial void OnSelectedDesignerElementChanged(DesignerElement? value)
+    {
+        if (_designerSelectionSubscription is not null)
+        {
+            _designerSelectionSubscription.PropertyChanged -= SelectedDesignerElement_PropertyChanged;
+        }
+
+        _designerSelectionSubscription = value;
+        if (_designerSelectionSubscription is not null)
+        {
+            _designerSelectionSubscription.PropertyChanged += SelectedDesignerElement_PropertyChanged;
+        }
+
+        OnPropertyChanged(nameof(IsSelectedDesignerElementButtonLike));
+        OnPropertyChanged(nameof(IsSelectedDesignerElementTagBindable));
+        OnPropertyChanged(nameof(IsSelectedDesignerElementNavigationAction));
+    }
+
+    private void SelectedDesignerElement_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(DesignerElement.CommandBinding) or nameof(DesignerElement.ElementType))
+        {
+            OnPropertyChanged(nameof(IsSelectedDesignerElementButtonLike));
+            OnPropertyChanged(nameof(IsSelectedDesignerElementTagBindable));
+            OnPropertyChanged(nameof(IsSelectedDesignerElementNavigationAction));
+        }
+    }
+
+    private void RefreshCylinderBindingProperties()
+    {
+        OnPropertyChanged(nameof(CylinderStatusText));
+        OnPropertyChanged(nameof(CylinderForwardActive));
+        OnPropertyChanged(nameof(CylinderBackwardActive));
+        OnPropertyChanged(nameof(CylinderOutputActive));
+        OnPropertyChanged(nameof(CylinderOutputText));
+        OnPropertyChanged(nameof(CylinderCurrentStateText));
+        OnPropertyChanged(nameof(CylinderDisplayName));
+        OnPropertyChanged(nameof(CylinderActionHint));
+        OnPropertyChanged(nameof(CylinderInterlockBaseReady));
+        OnPropertyChanged(nameof(CylinderHomeInterlockActive));
+        OnPropertyChanged(nameof(CylinderMoveInterlockActive));
+        OnPropertyChanged(nameof(CylinderHomeInterlockText));
+        OnPropertyChanged(nameof(CylinderMoveInterlockText));
+        OnPropertyChanged(nameof(CylinderInterlockHint));
+    }
+    partial void OnIoSaveIntervalMinutesChanged(int value)
+    {
+        if (value < 1)
+        {
+            IoSaveIntervalMinutes = 1;
+        }
+    }
+    partial void OnSelectedGeneratedIoProgramChanged(GeneratedProgramArtifact? value) => OnPropertyChanged(nameof(SelectedGeneratedIoProgramContent));
+    partial void OnSelectedGeneratedAutoProgramChanged(GeneratedProgramArtifact? value) => OnPropertyChanged(nameof(SelectedGeneratedAutoProgramContent));
     partial void OnAutoRefreshEnabledChanged(bool value) => UpdateAutoRefreshState();
     partial void OnUseOpcSubscriptionChanged(bool value) => UpdateAutoRefreshState();
     partial void OnSelectedRecipeNameChanged(string value) => RefreshActiveRecipeParameters();
@@ -427,6 +625,13 @@ public partial class MainViewModel : ObservableObject
     {
         try
         {
+            if (!string.Equals(Connection.Protocol, "OPC UA", StringComparison.OrdinalIgnoreCase))
+            {
+                SystemMessage = $"当前版本仅支持 OPC UA 通讯，暂不支持 {Connection.Protocol}";
+                AddLog("通讯", SystemMessage, "Warning");
+                return;
+            }
+
             await _opcUaService.ConnectAsync(Connection);
             SystemMessage = $"连接成功：{Connection.GetEndpointUrl()}";
             OnPropertyChanged(nameof(CommunicationStatus));
@@ -434,12 +639,12 @@ public partial class MainViewModel : ObservableObject
             await RefreshTagsAsync();
             await LoadAlarmHistoryAsync();
             UpdateAutoRefreshState();
-            AddLog("ͨѶ", SystemMessage, "Info");
+            AddLog("通讯", SystemMessage, "Info");
         }
         catch (Exception ex)
         {
             SystemMessage = $"连接失败：{ex.Message}";
-            AddLog("ͨѶ", SystemMessage, "Error");
+            AddLog("通讯", SystemMessage, "Error");
         }
     }
 
@@ -454,9 +659,9 @@ public partial class MainViewModel : ObservableObject
         SelectedOpcUaNodeStatus = "未读取";
         SelectedOpcUaNodeTimestamp = "--";
         OpcUaBrowserStatus = "连接 OPC UA 后，可在这里浏览服务器节点。";
-        SystemMessage = "已断开 OPC UA 连接";
+        SystemMessage = "宸叉柇寮€ OPC UA 杩炴帴";
         OnPropertyChanged(nameof(CommunicationStatus));
-        AddLog("ͨѶ", SystemMessage, "Info");
+        AddLog("通讯", SystemMessage, "Info");
     }
 
     [RelayCommand]
@@ -478,10 +683,11 @@ public partial class MainViewModel : ObservableObject
             }
             UpdateRuntimeVisuals();
             RefreshMonitorView();
+            UpdateRuntimeVisuals();
             RefreshAlarmStatistics();
             SimulateFlowProgress();
             await SaveTrendHistoryAsync();
-            SystemMessage = "变量刷新完成";
+            SystemMessage = "鍙橀噺鍒锋柊瀹屾垚";
         }
         catch (Exception ex)
         {
@@ -555,10 +761,10 @@ public partial class MainViewModel : ObservableObject
         if (!string.Equals(SelectedOpcUaBrowseNode.NodeClass, "Variable", StringComparison.OrdinalIgnoreCase))
         {
             SelectedOpcUaNodeValue = "--";
-            SelectedOpcUaNodeStatus = "当前节点不是变量节点";
+            SelectedOpcUaNodeStatus = "褰撳墠鑺傜偣涓嶆槸鍙橀噺鑺傜偣";
             SelectedOpcUaNodeTimestamp = "--";
             SelectedOpcUaBrowseNode.DataType = "--";
-            OpcUaBrowserStatus = $"已选中 {SelectedOpcUaBrowseNode.DisplayName}";
+            OpcUaBrowserStatus = $"宸查€変腑 {SelectedOpcUaBrowseNode.DisplayName}";
             return;
         }
 
@@ -567,7 +773,7 @@ public partial class MainViewModel : ObservableObject
             var result = await _opcUaService.ReadNodeAsync(SelectedOpcUaBrowseNode.NodeId);
             SelectedOpcUaBrowseNode.DataType = result.DataType;
             SelectedOpcUaBrowseNode.Value = result.Value;
-            SelectedOpcUaNodeValue = string.IsNullOrWhiteSpace(result.Value) ? "(空)" : result.Value;
+            SelectedOpcUaNodeValue = string.IsNullOrWhiteSpace(result.Value) ? "(绌?" : result.Value;
             SelectedOpcUaNodeStatus = result.StatusCode;
             SelectedOpcUaNodeTimestamp = result.Timestamp;
             OpcUaBrowserStatus = $"已读取节点：{SelectedOpcUaBrowseNode.DisplayName}";
@@ -611,7 +817,7 @@ public partial class MainViewModel : ObservableObject
             Category = "OPC UA Browser",
             Group = "Imported",
             Direction = "Input",
-            CurrentValue = SelectedOpcUaNodeValue == "(空)" ? string.Empty : SelectedOpcUaNodeValue,
+            CurrentValue = SelectedOpcUaNodeValue == "(绌?" ? string.Empty : SelectedOpcUaNodeValue,
             Description = "由内置 OPC UA 浏览器导入",
             IsWritable = false
         });
@@ -639,7 +845,7 @@ public partial class MainViewModel : ObservableObject
         SetTagValue("Daily_ProductionCount", "0");
         SetTagValue("Daily_GoodCount", "0");
         SetTagValue("Daily_NgCount", "0");
-        AddLog("生产", "日累计计数已清零", "Info");
+        AddLog("鐢熶骇", "鏃ョ疮璁¤鏁板凡娓呴浂", "Info");
         UpdateRuntimeVisuals();
         await Task.CompletedTask;
     }
@@ -649,29 +855,29 @@ public partial class MainViewModel : ObservableObject
     {
         var dialog = new SaveFileDialog
         {
-            Filter = "CSV 文件|*.csv",
+            Filter = "CSV 鏂囦欢|*.csv",
             FileName = $"production-report-{DateTime.Now:yyyyMMdd-HHmmss}.csv"
         };
         if (dialog.ShowDialog() != true) return;
 
         var sb = new StringBuilder();
         sb.AppendLine("项目,值");
-        sb.AppendLine($"工单号,{CurrentOrderText}");
-        sb.AppendLine($"配方,{CurrentRecipeText}");
-        sb.AppendLine($"总产量,{ProductionCount}");
-        sb.AppendLine($"良品,{GoodCount}");
-        sb.AppendLine($"不良,{NgCount}");
-        sb.AppendLine($"班次产量,{ShiftProductionCount}");
-        sb.AppendLine($"日累计,{DailyProductionCount}");
-        sb.AppendLine($"目标,{TargetCount}");
+        sb.AppendLine($"宸ュ崟鍙?{CurrentOrderText}");
+        sb.AppendLine($"閰嶆柟,{CurrentRecipeText}");
+        sb.AppendLine($"鎬讳骇閲?{ProductionCount}");
+        sb.AppendLine($"鑹搧,{GoodCount}");
+        sb.AppendLine($"涓嶈壇,{NgCount}");
+        sb.AppendLine($"鐝浜ч噺,{ShiftProductionCount}");
+        sb.AppendLine($"鏃ョ疮璁?{DailyProductionCount}");
+        sb.AppendLine($"鐩爣,{TargetCount}");
         sb.AppendLine($"Availability,{AvailabilityRate.ToString("F1", CultureInfo.InvariantCulture)}");
         sb.AppendLine($"Performance,{PerformanceRate.ToString("F1", CultureInfo.InvariantCulture)}");
         sb.AppendLine($"Quality,{QualityRate.ToString("F1", CultureInfo.InvariantCulture)}");
         sb.AppendLine($"OEE,{OeeRate.ToString("F1", CultureInfo.InvariantCulture)}");
-        sb.AppendLine($"预计停机分钟,{EstimatedDowntimeMinutes.ToString("F1", CultureInfo.InvariantCulture)}");
-        sb.AppendLine($"预计影响产量,{EstimatedProductionLoss}");
+        sb.AppendLine($"棰勮鍋滄満鍒嗛挓,{EstimatedDowntimeMinutes.ToString("F1", CultureInfo.InvariantCulture)}");
+        sb.AppendLine($"棰勮褰卞搷浜ч噺,{EstimatedProductionLoss}");
         sb.AppendLine();
-        sb.AppendLine("报警来源,级别,累计次数,状态,结论");
+        sb.AppendLine("鎶ヨ鏉ユ簮,绾у埆,绱娆℃暟,鐘舵€?缁撹");
         foreach (var item in AlarmStatistics)
         {
             sb.AppendLine($"{item.Source},{item.Level},{item.Count},{item.State},{item.Message}");
@@ -682,17 +888,17 @@ public partial class MainViewModel : ObservableObject
         var excelPath = Path.ChangeExtension(dialog.FileName, ".xls");
         var html = new StringBuilder();
         html.AppendLine("<html><meta charset='utf-8'><body>");
-        html.AppendLine("<table border='1'><tr><th>项目</th><th>值</th></tr>");
-        html.AppendLine($"<tr><td>工单号</td><td>{CurrentOrderText}</td></tr>");
-        html.AppendLine($"<tr><td>配方</td><td>{CurrentRecipeText}</td></tr>");
-        html.AppendLine($"<tr><td>总产量</td><td>{ProductionCount}</td></tr>");
-        html.AppendLine($"<tr><td>良品</td><td>{GoodCount}</td></tr>");
-        html.AppendLine($"<tr><td>不良</td><td>{NgCount}</td></tr>");
+        html.AppendLine("<table border='1'><tr><th>椤圭洰</th><th>鍊?/th></tr>");
+        html.AppendLine($"<tr><td>宸ュ崟鍙?/td><td>{CurrentOrderText}</td></tr>");
+        html.AppendLine($"<tr><td>閰嶆柟</td><td>{CurrentRecipeText}</td></tr>");
+        html.AppendLine($"<tr><td>鎬讳骇閲?/td><td>{ProductionCount}</td></tr>");
+        html.AppendLine($"<tr><td>鑹搧</td><td>{GoodCount}</td></tr>");
+        html.AppendLine($"<tr><td>涓嶈壇</td><td>{NgCount}</td></tr>");
         html.AppendLine($"<tr><td>OEE</td><td>{OeeRate:F1}%</td></tr>");
-        html.AppendLine($"<tr><td>预计停机分钟</td><td>{EstimatedDowntimeMinutes:F1}</td></tr>");
-        html.AppendLine($"<tr><td>预计影响产量</td><td>{EstimatedProductionLoss}</td></tr>");
+        html.AppendLine($"<tr><td>棰勮鍋滄満鍒嗛挓</td><td>{EstimatedDowntimeMinutes:F1}</td></tr>");
+        html.AppendLine($"<tr><td>棰勮褰卞搷浜ч噺</td><td>{EstimatedProductionLoss}</td></tr>");
         html.AppendLine("</table><br/>");
-        html.AppendLine("<table border='1'><tr><th>报警来源</th><th>级别</th><th>累计次数</th><th>状态</th><th>建议</th><th>原因归档</th></tr>");
+        html.AppendLine("<table border='1'><tr><th>鎶ヨ鏉ユ簮</th><th>绾у埆</th><th>绱娆℃暟</th><th>鐘舵€?/th><th>寤鸿</th><th>鍘熷洜褰掓。</th></tr>");
         foreach (var item in AlarmStatistics)
         {
             html.AppendLine($"<tr><td>{item.Source}</td><td>{item.Level}</td><td>{item.Count}</td><td>{item.State}</td><td>{item.HandlingSuggestion}</td><td>{item.CauseArchive}</td></tr>");
@@ -700,14 +906,14 @@ public partial class MainViewModel : ObservableObject
         html.AppendLine("</table></body></html>");
         await File.WriteAllTextAsync(excelPath, html.ToString(), Encoding.UTF8);
 
-        SystemMessage = $"报表已导出：CSV + Excel兼容文件";
-        AddLog("报表", SystemMessage, "Info");
+        SystemMessage = $"鎶ヨ〃宸插鍑猴細CSV + Excel鍏煎鏂囦欢";
+        AddLog("鎶ヨ〃", SystemMessage, "Info");
     }
 
     [RelayCommand]
     private async Task ImportTagsAsync()
     {
-        var dialog = new OpenFileDialog { Filter = "CSV 文件|*.csv|所有文件|*.*" };
+        var dialog = new OpenFileDialog { Filter = "CSV 鏂囦欢|*.csv|鎵€鏈夋枃浠秥*.*" };
         if (dialog.ShowDialog() != true) return;
         var imported = await _csvImportService.ImportTagsAsync(dialog.FileName);
         Tags.Clear();
@@ -715,13 +921,13 @@ public partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(TagCount));
         RefreshMonitorView();
         SystemMessage = $"已导入变量表：{Path.GetFileName(dialog.FileName)}，共 {Tags.Count} 项";
-        AddLog("配置", SystemMessage, "Info");
+        AddLog("閰嶇疆", SystemMessage, "Info");
     }
 
     [RelayCommand]
     private async Task ImportXmlTagsAsync()
     {
-        var dialog = new OpenFileDialog { Filter = "XML 文件|*.xml|所有文件|*.*" };
+        var dialog = new OpenFileDialog { Filter = "XML 鏂囦欢|*.xml|鎵€鏈夋枃浠秥*.*" };
         if (dialog.ShowDialog() != true) return;
 
         try
@@ -732,26 +938,26 @@ public partial class MainViewModel : ObservableObject
             OnPropertyChanged(nameof(TagCount));
             RefreshMonitorView();
             SystemMessage = $"已导入 XML 变量表：{Path.GetFileName(dialog.FileName)}，共 {Tags.Count} 项";
-            AddLog("配置", SystemMessage, "Info");
+            AddLog("閰嶇疆", SystemMessage, "Info");
         }
         catch (Exception ex)
         {
-            ShowPopup("XML导入失败", ex.Message, "Warning");
+            ShowPopup("XML瀵煎叆澶辫触", ex.Message, "Warning");
         }
     }
 
     [RelayCommand]
     private void JumpToAlarmPage()
     {
-        Navigate("报警画面");
-        SectionJumpRequested?.Invoke("报警画面", null);
+        Navigate("鎶ヨ鐢婚潰");
+        SectionJumpRequested?.Invoke("鎶ヨ鐢婚潰", null);
     }
 
     [RelayCommand]
     private void JumpToAuditPage()
     {
-        Navigate("操作审计");
-        SectionJumpRequested?.Invoke("操作审计", null);
+        Navigate("鎿嶄綔瀹¤");
+        SectionJumpRequested?.Invoke("鎿嶄綔瀹¤", null);
     }
 
     [RelayCommand]
@@ -759,8 +965,8 @@ public partial class MainViewModel : ObservableObject
     {
         JumpAlarmKeyword = keyword ?? string.Empty;
         HighlightAlarm(JumpAlarmKeyword);
-        Navigate("当前报警");
-        SectionJumpRequested?.Invoke("报警画面", JumpAlarmKeyword);
+        Navigate("褰撳墠鎶ヨ");
+        SectionJumpRequested?.Invoke("鎶ヨ鐢婚潰", JumpAlarmKeyword);
         HighlightRequested?.Invoke("Alarm", JumpAlarmKeyword);
     }
 
@@ -782,14 +988,14 @@ public partial class MainViewModel : ObservableObject
             RefreshFlowView();
             HighlightRequested?.Invoke("Flow", $"{matched.FlowName}|{matched.StepNo}");
         }
-        Navigate("程序监控");
-        SectionJumpRequested?.Invoke("监视画面", alarmKeyword);
+        Navigate("绋嬪簭鐩戞帶");
+        SectionJumpRequested?.Invoke("鐩戣鐢婚潰", alarmKeyword);
     }
 
     [RelayCommand]
     private async Task ExportFlowIssueReportAsync()
     {
-        var dialog = new SaveFileDialog { Filter = "CSV 文件|*.csv", FileName = $"flow-issue-report-{DateTime.Now:yyyyMMdd-HHmmss}.csv" };
+        var dialog = new SaveFileDialog { Filter = "CSV 鏂囦欢|*.csv", FileName = $"flow-issue-report-{DateTime.Now:yyyyMMdd-HHmmss}.csv" };
         if (dialog.ShowDialog() != true) return;
         var sb = new StringBuilder();
         sb.AppendLine("Category,Name,Metric,Conclusion");
@@ -804,14 +1010,14 @@ public partial class MainViewModel : ObservableObject
             sb.AppendLine($"{item.FlowName},{item.StepNo},{item.StartTime:yyyy-MM-dd HH:mm:ss},{item.EndTime:yyyy-MM-dd HH:mm:ss},{item.DurationSeconds:F2},{item.Result},{item.RelatedAlarm}");
         }
         await File.WriteAllTextAsync(dialog.FileName, sb.ToString(), Encoding.UTF8);
-        SystemMessage = $"异常流程分析报告已导出：{dialog.FileName}";
-        AddLog("流程分析", SystemMessage, "Info");
+        SystemMessage = $"寮傚父娴佺▼鍒嗘瀽鎶ュ憡宸插鍑猴細{dialog.FileName}";
+        AddLog("娴佺▼鍒嗘瀽", SystemMessage, "Info");
     }
 
     [RelayCommand]
     private async Task ImportFlowCsvAsync()
     {
-        var dialog = new OpenFileDialog { Filter = "CSV 文件|*.csv|所有文件|*.*" };
+        var dialog = new OpenFileDialog { Filter = "CSV 鏂囦欢|*.csv|鎵€鏈夋枃浠秥*.*" };
         if (dialog.ShowDialog() != true) return;
         var items = await _flowLogCsvService.LoadAsync(dialog.FileName);
         if (items.Count == 0)
@@ -840,7 +1046,7 @@ public partial class MainViewModel : ObservableObject
     {
         if (string.IsNullOrWhiteSpace(NewTagName) || string.IsNullOrWhiteSpace(NewTagNodeId))
         {
-            SystemMessage = "请填写变量名和 NodeId";
+            SystemMessage = "璇峰～鍐欏彉閲忓悕鍜?NodeId";
             return;
         }
 
@@ -922,19 +1128,39 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private async Task SetDebugModeAsync() => await SetExclusiveModeAsync("Mode_Debug", "调试模式");
+    private async Task CylinderMoveToHomeAsync(ManualCylinderBlockItem? block) => await SetCylinderPositionAsync(block, false, "姘旂几鍘熺偣鎿嶄綔");
 
     [RelayCommand]
-    private async Task SetDryRunModeAsync() => await SetExclusiveModeAsync("Mode_DryRun", "空跑模式");
+    private async Task CylinderMoveToWorkAsync(ManualCylinderBlockItem? block) => await SetCylinderPositionAsync(block, true, "姘旂几鍔ㄧ偣鎿嶄綔");
 
     [RelayCommand]
-    private async Task SetBypassStationModeAsync() => await SetExclusiveModeAsync("Mode_BypassStation", "过站模式");
+    private void ToggleCylinderHomeMask()
+    {
+        CylinderHomeMaskEnabled = !CylinderHomeMaskEnabled;
+        SystemMessage = CylinderHomeMaskEnabled ? "已开启气缸原点屏蔽" : "已关闭气缸原点屏蔽";
+    }
 
     [RelayCommand]
-    private async Task SetManualModeAsync() => await SetExclusiveModeAsync("Mode_Manual", "人工模式");
+    private void ToggleCylinderWorkMask()
+    {
+        CylinderWorkMaskEnabled = !CylinderWorkMaskEnabled;
+        SystemMessage = CylinderWorkMaskEnabled ? "已开启气缸动点屏蔽" : "已关闭气缸动点屏蔽";
+    }
 
     [RelayCommand]
-    private async Task SetAutoModeAsync() => await SetExclusiveModeAsync("Mode_Auto", "自动模式");
+    private async Task SetDebugModeAsync() => await SetExclusiveModeAsync("Mode_Debug", "璋冭瘯妯″紡");
+
+    [RelayCommand]
+    private async Task SetDryRunModeAsync() => await SetExclusiveModeAsync("Mode_DryRun", "绌鸿窇妯″紡");
+
+    [RelayCommand]
+    private async Task SetBypassStationModeAsync() => await SetExclusiveModeAsync("Mode_BypassStation", "杩囩珯妯″紡");
+
+    [RelayCommand]
+    private async Task SetManualModeAsync() => await SetExclusiveModeAsync("Mode_Manual", "浜哄伐妯″紡");
+
+    [RelayCommand]
+    private async Task SetAutoModeAsync() => await SetExclusiveModeAsync("Mode_Auto", "鑷姩妯″紡");
 
     [RelayCommand]
     private async Task StartDeviceAsync()
@@ -955,7 +1181,7 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
-        await ToggleBoundBooleanTagAsync("Device_Start", "设备启动");
+        await ToggleBoundBooleanTagAsync("Device_Start", "璁惧鍚姩");
     }
 
     [RelayCommand]
@@ -967,7 +1193,7 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
-        await ToggleBoundBooleanTagAsync("Device_Start", "设备停止");
+        await ToggleBoundBooleanTagAsync("Device_Start", "璁惧鍋滄");
     }
 
     [RelayCommand]
@@ -990,8 +1216,8 @@ public partial class MainViewModel : ObservableObject
             ShowPopup("操作条件不满足", "当前电机无故障，无需执行故障复位。", "Warning");
             return;
         }
-        if (!RequestConfirmation("确认复位", "确认执行电机故障复位吗？")) return;
-        await PulseBooleanTagAsync("Motor1_Reset", "电机故障复位输出");
+        if (!RequestConfirmation("纭澶嶄綅", "纭鎵ц鐢垫満鏁呴殰澶嶄綅鍚楋紵")) return;
+        await PulseBooleanTagAsync("Motor1_Reset", "鐢垫満鏁呴殰澶嶄綅杈撳嚭");
     }
 
     [RelayCommand]
@@ -999,7 +1225,7 @@ public partial class MainViewModel : ObservableObject
     {
         if (!GetBoolTag("Robot_Run"))
         {
-            ShowPopup("操作条件不满足", "机械手当前未运行，不能执行暂停操作。");
+            ShowPopup("操作条件不满足", "机械手当前未运行，不能执行暂停操作。", "Warning");
             return;
         }
         await PulseBooleanTagAsync("Robot_Pause", "机械手暂停输出");
@@ -1022,7 +1248,7 @@ public partial class MainViewModel : ObservableObject
     {
         if (GetBoolTag("Axis1_Alarm"))
         {
-            ShowPopup("操作条件不满足", "轴当前存在报警，请先复位报警后再进行使能。");
+            ShowPopup("操作条件不满足", "轴当前存在报警，请先复位报警后再进行使能。", "Warning");
             return;
         }
         await ToggleBoundBooleanTagAsync("Axis1_Enable", "轴使能");
@@ -1053,36 +1279,36 @@ public partial class MainViewModel : ObservableObject
             ShowPopup("操作条件不满足", "轴存在报警，不能执行回零操作。", "Warning");
             return;
         }
-        await WriteAxisPositionAsync(0.0, "轴1 已回零");
+        await WriteAxisPositionAsync(0.0, "轴已回零");
     }
 
     [RelayCommand]
     private async Task JogAxisPositiveAsync()
     {
-        if (!GetBoolTag("Axis1_Enable")) { ShowPopup("操作条件不满足", "轴未使能，不能执行 Jog+。", "Warning" ); return; }
-        if (GetBoolTag("Axis1_Alarm") && !AllowAxisMoveWhenAlarm) { ShowPopup("操作条件不满足", "轴存在报警，不能执行 Jog+。", "Warning" ); return; }
-        if (!double.TryParse(AxisJogDistance, out var jog)) { ShowPopup("参数错误", "Jog 距离格式错误，请输入有效数字。"); return; }
+        if (!GetBoolTag("Axis1_Enable")) { ShowPopup("操作条件不满足", "轴未使能，不能执行 Jog+。", "Warning"); return; }
+        if (GetBoolTag("Axis1_Alarm") && !AllowAxisMoveWhenAlarm) { ShowPopup("操作条件不满足", "轴存在报警，不能执行 Jog+。", "Warning"); return; }
+        if (!double.TryParse(AxisJogDistance, out var jog)) { ShowPopup("参数错误", "Jog 距离格式错误，请输入有效数字。", "Warning"); return; }
         var current = GetAxisCurrentPosition();
-        await WriteAxisPositionAsync(current + jog, $"轴1 Jog+ {jog}");
+        await WriteAxisPositionAsync(current + jog, $"轴 Jog+ {jog}");
     }
 
     [RelayCommand]
     private async Task JogAxisNegativeAsync()
     {
-        if (!GetBoolTag("Axis1_Enable")) { ShowPopup("操作条件不满足", "轴未使能，不能执行 Jog-。", "Warning" ); return; }
-        if (GetBoolTag("Axis1_Alarm") && !AllowAxisMoveWhenAlarm) { ShowPopup("操作条件不满足", "轴存在报警，不能执行 Jog-。", "Warning" ); return; }
-        if (!double.TryParse(AxisJogDistance, out var jog)) { ShowPopup("参数错误", "Jog 距离格式错误，请输入有效数字。"); return; }
+        if (!GetBoolTag("Axis1_Enable")) { ShowPopup("操作条件不满足", "轴未使能，不能执行 Jog-。", "Warning"); return; }
+        if (GetBoolTag("Axis1_Alarm") && !AllowAxisMoveWhenAlarm) { ShowPopup("操作条件不满足", "轴存在报警，不能执行 Jog-。", "Warning"); return; }
+        if (!double.TryParse(AxisJogDistance, out var jog)) { ShowPopup("参数错误", "Jog 距离格式错误，请输入有效数字。", "Warning"); return; }
         var current = GetAxisCurrentPosition();
-        await WriteAxisPositionAsync(current - jog, $"轴1 Jog- {jog}");
+        await WriteAxisPositionAsync(current - jog, $"轴 Jog- {jog}");
     }
 
     [RelayCommand]
     private async Task MoveAxisToTargetAsync()
     {
-        if (!GetBoolTag("Axis1_Enable")) { ShowPopup("操作条件不满足", "轴未使能，不能执行定位移动。", "Warning" ); return; }
-        if (GetBoolTag("Axis1_Alarm") && !AllowAxisMoveWhenAlarm) { ShowPopup("操作条件不满足", "轴存在报警，不能执行定位移动。", "Warning" ); return; }
-        if (!double.TryParse(AxisTargetPosition, out var target)) { ShowPopup("参数错误", "目标位置格式错误，请输入有效数字。"); return; }
-        await WriteAxisPositionAsync(target, $"轴1 移动到 {target}");
+        if (!GetBoolTag("Axis1_Enable")) { ShowPopup("操作条件不满足", "轴未使能，不能执行定位移动。", "Warning"); return; }
+        if (GetBoolTag("Axis1_Alarm") && !AllowAxisMoveWhenAlarm) { ShowPopup("操作条件不满足", "轴存在报警，不能执行定位移动。", "Warning"); return; }
+        if (!double.TryParse(AxisTargetPosition, out var target)) { ShowPopup("参数错误", "目标位置格式错误，请输入有效数字。", "Warning"); return; }
+        await WriteAxisPositionAsync(target, $"轴移动到 {target}");
     }
 
     [RelayCommand]
@@ -1090,11 +1316,11 @@ public partial class MainViewModel : ObservableObject
     {
         if (!CanEditParameters) { SystemMessage = "当前权限不足，无法修改参数"; return; }
         var illegal = Parameters.FirstOrDefault(p => !CanEditParameter(p));
-        if (illegal is not null) { SystemMessage = $"存在超权限参数：{illegal.Name}"; return; }
+        if (illegal is not null) { SystemMessage = $"瀛樺湪瓒呮潈闄愬弬鏁帮細{illegal.Name}"; return; }
         var path = Path.Combine(GetProjectRoot(), "config", "parameters.json");
         await _parameterService.SaveAsync(path, Parameters);
-        SystemMessage = $"参数已保存：{path}";
-        AddLog("参数", SystemMessage, "Info");
+        SystemMessage = $"鍙傛暟宸蹭繚瀛橈細{path}";
+        AddLog("鍙傛暟", SystemMessage, "Info");
     }
 
     [RelayCommand]
@@ -1112,8 +1338,8 @@ public partial class MainViewModel : ObservableObject
         Parameters.Clear();
         foreach (var item in items) Parameters.Add(item);
         RefreshParameterPermissions();
-        SystemMessage = "参数加载完成";
-        AddLog("参数", SystemMessage, "Info");
+        SystemMessage = "鍙傛暟鍔犺浇瀹屾垚";
+        AddLog("鍙傛暟", SystemMessage, "Info");
     }
 
     [RelayCommand]
@@ -1130,7 +1356,7 @@ public partial class MainViewModel : ObservableObject
         }
         RefreshAlarmStatistics();
         SystemMessage = "当前报警已全部确认";
-        AddLog("报警", SystemMessage, "Info");
+        AddLog("鎶ヨ", SystemMessage, "Info");
     }
 
     [RelayCommand]
@@ -1149,7 +1375,7 @@ public partial class MainViewModel : ObservableObject
                 Time = DateTime.Now,
                 Level = alarm.Level,
                 Source = alarm.Source,
-                Message = $"已复位：{alarm.Message}",
+                Message = $"宸插浣嶏細{alarm.Message}",
                 Active = false,
                 Acknowledged = true,
                 ClearTime = DateTime.Now,
@@ -1164,7 +1390,7 @@ public partial class MainViewModel : ObservableObject
         RefreshAlarmStatistics();
         await SaveAlarmHistoryAsync();
         SystemMessage = "报警已全部复位";
-        AddLog("报警", SystemMessage, "Warning");
+        AddLog("鎶ヨ", SystemMessage, "Warning");
     }
 
     [RelayCommand]
@@ -1172,7 +1398,7 @@ public partial class MainViewModel : ObservableObject
     {
         var path = Path.Combine(GetProjectRoot(), "config", "alarm-history.json");
         await _alarmService.SaveHistoryAsync(path, AlarmHistory);
-        SystemMessage = $"报警历史已保存：{path}";
+        SystemMessage = $"鎶ヨ鍘嗗彶宸蹭繚瀛橈細{path}";
     }
 
     [RelayCommand]
@@ -1190,10 +1416,21 @@ public partial class MainViewModel : ObservableObject
     private async Task SaveConfigAsync()
     {
         var path = Path.Combine(GetProjectRoot(), "config", "appsettings.json");
-        var config = new AppConfig { Connection = Connection, Tags = Tags.ToList(), EventBindings = EventBindings.ToList() };
+        var config = new AppConfig
+        {
+            Connection = Connection,
+            Tags = Tags.ToList(),
+            EventBindings = EventBindings.ToList(),
+            IoGeneration = new IoGenerationSettings
+            {
+                PlcType = SelectedIoPlcTemplate,
+                OperationNumber = IoOperationNumber
+            },
+            IoTableRows = IoTableRows.ToList()
+        };
         await _configurationService.SaveAsync(path, config);
-        SystemMessage = $"配置已保存：{path}";
-        AddLog("配置", SystemMessage, "Info");
+        SystemMessage = $"閰嶇疆宸蹭繚瀛橈細{path}";
+        AddLog("閰嶇疆", SystemMessage, "Info");
     }
 
     [RelayCommand]
@@ -1203,13 +1440,434 @@ public partial class MainViewModel : ObservableObject
         var config = await _configurationService.LoadAsync(path);
         if (config is null) { SystemMessage = "未找到配置文件"; return; }
         Connection = config.Connection;
+        if (string.IsNullOrWhiteSpace(Connection.Protocol))
+        {
+            Connection.Protocol = "OPC UA";
+        }
         Tags.Clear(); foreach (var tag in config.Tags) Tags.Add(tag);
         EventBindings.Clear(); foreach (var binding in config.EventBindings) EventBindings.Add(binding);
+        SelectedIoPlcTemplate = string.IsNullOrWhiteSpace(config.IoGeneration?.PlcType) ? "姹囧窛涓瀷PLC" : config.IoGeneration.PlcType;
+        IoOperationNumber = string.IsNullOrWhiteSpace(config.IoGeneration?.OperationNumber) ? "OP10" : config.IoGeneration.OperationNumber;
+        IoTableRows.Clear();
+        foreach (var row in config.IoTableRows ?? new List<IoTableRow>()) IoTableRows.Add(row);
+        RefreshIoGenerationSummary();
         OnPropertyChanged(nameof(TagCount));
         RefreshMonitorView();
         RefreshAlarmStatistics();
-        SystemMessage = "配置加载完成";
-        AddLog("配置", SystemMessage, "Info");
+        SystemMessage = "閰嶇疆鍔犺浇瀹屾垚";
+        AddLog("閰嶇疆", SystemMessage, "Info");
+    }
+
+    [RelayCommand]
+    private async Task ImportIoTableAsync()
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "导入 IO 表",
+            Filter = "IO 琛?(*.csv;*.txt)|*.csv;*.txt|CSV 鏂囦欢 (*.csv)|*.csv|鏂囨湰鏂囦欢 (*.txt)|*.txt",
+            CheckFileExists = true
+        };
+
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        try
+        {
+            var importResult = await _ioTableImportService.ImportAsync(dialog.FileName);
+            IoTableRows.Clear();
+            foreach (var row in importResult.Rows) IoTableRows.Add(row);
+            _currentIoSourceFilePath = importResult.SourceFilePath;
+            _currentIoSourceEncodingCodePage = importResult.EncodingCodePage;
+            _currentIoSourceHeaders = importResult.Headers;
+            _importedIoRowsSnapshot.Clear();
+            _importedIoRowsSnapshot.AddRange(CloneIoRows(importResult.Rows));
+            _lastIoSavedSnapshot.Clear();
+            _lastIoSavedFilePath = string.Empty;
+            _lastIoHistoryFilePath = string.Empty;
+            _lastIoSaveAt = DateTime.MinValue;
+            GeneratedIoPrograms.Clear();
+            SelectedGeneratedIoProgram = null;
+            GeneratedIoOutputDirectory = string.Empty;
+            IsRuntimeMode = false;
+            SelectedTabIndex = ResolveTabIndex("设计器");
+        CurrentDesignerSubSection = "手动程序生成";
+            CurrentSection = "鎵嬪姩绋嬪簭鐢熸垚";
+            RefreshIoGenerationSummary();
+            OnPropertyChanged(nameof(CanSaveIoTable));
+            SystemMessage = $"IO 琛ㄥ鍏ュ畬鎴愶細{Path.GetFileName(dialog.FileName)}";
+            AddLog("IO 生成", $"{SystemMessage}，共 {importResult.Rows.Count} 行。", "Info");
+        }
+        catch (Exception ex)
+        {
+            SystemMessage = $"IO 琛ㄥ鍏ュけ璐ワ細{ex.Message}";
+            AddLog("IO 鐢熸垚", SystemMessage, "Error");
+            ShowPopup("瀵煎叆澶辫触", ex.Message, "Error");
+        }
+    }
+
+    [RelayCommand]
+    private void ClearIoTable()
+    {
+        IoTableRows.Clear();
+        GeneratedIoPrograms.Clear();
+        SelectedGeneratedIoProgram = null;
+        GeneratedIoOutputDirectory = string.Empty;
+        _currentIoSourceFilePath = string.Empty;
+        _currentIoSourceEncodingCodePage = 65001;
+        _currentIoSourceHeaders = new();
+        _importedIoRowsSnapshot.Clear();
+        _lastIoSavedSnapshot.Clear();
+        _lastIoSavedFilePath = string.Empty;
+        _lastIoHistoryFilePath = string.Empty;
+        _lastIoSaveAt = DateTime.MinValue;
+        RefreshIoGenerationSummary();
+        OnPropertyChanged(nameof(CanSaveIoTable));
+        SystemMessage = "IO 琛ㄥ凡娓呯┖";
+        AddLog("IO 鐢熸垚", SystemMessage, "Warning");
+    }
+
+    [RelayCommand]
+    private async Task SaveIoTableToSourceAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_currentIoSourceFilePath))
+        {
+            ShowPopup("保存失败", "当前没有可保存的源文件目录，请先导入 IO 表。", "Warning");
+            return;
+        }
+
+        try
+        {
+            var directory = Path.GetDirectoryName(_currentIoSourceFilePath) ?? GetApplicationRoot();
+            var extension = Path.GetExtension(_currentIoSourceFilePath);
+            if (string.IsNullOrWhiteSpace(extension))
+            {
+                extension = ".csv";
+            }
+
+            var intervalMinutes = Math.Max(1, IoSaveIntervalMinutes);
+            var shouldReuseSameFile = intervalMinutes < 5
+                && !string.IsNullOrWhiteSpace(_lastIoSavedFilePath)
+                && File.Exists(_lastIoSavedFilePath)
+                && string.Equals(Path.GetDirectoryName(_lastIoSavedFilePath), directory, StringComparison.OrdinalIgnoreCase)
+                && DateTime.Now - _lastIoSaveAt <= TimeSpan.FromMinutes(intervalMinutes);
+
+            var filePath = shouldReuseSameFile
+                ? _lastIoSavedFilePath
+                : Path.Combine(directory, $"IO表{DateTime.Now:yyyyMMdd_HHmmss}{extension}");
+            var historyPath = Path.Combine(directory, "IO表_修改履历.txt");
+            var baselineRows = shouldReuseSameFile && _lastIoSavedSnapshot.Count > 0
+                ? _lastIoSavedSnapshot
+                : _importedIoRowsSnapshot;
+            var currentRows = CloneIoRows(IoTableRows);
+            var changeLines = BuildIoChangeLog(baselineRows, currentRows);
+
+            await _ioTableImportService.SaveAsync(filePath, IoTableRows, _currentIoSourceHeaders, _currentIoSourceEncodingCodePage);
+            if (changeLines.Count > 0)
+            {
+                await File.AppendAllTextAsync(historyPath, BuildIoHistoryEntry(filePath, changeLines), Encoding.UTF8);
+            }
+
+            _lastIoSavedSnapshot.Clear();
+            _lastIoSavedSnapshot.AddRange(currentRows);
+            _lastIoSavedFilePath = filePath;
+            _lastIoHistoryFilePath = historyPath;
+            _lastIoSaveAt = DateTime.Now;
+
+            SystemMessage = shouldReuseSameFile
+                ? $"IO 表已更新：{Path.GetFileName(filePath)}"
+                : $"IO 表已另存为：{Path.GetFileName(filePath)}";
+            AddLog("IO 生成", SystemMessage, "Info");
+        }
+        catch (Exception ex)
+        {
+            SystemMessage = $"IO 表保存失败：{ex.Message}";
+            AddLog("IO 生成", SystemMessage, "Error");
+            ShowPopup("保存失败", ex.Message, "Error");
+        }
+    }
+
+    private static List<IoTableRow> CloneIoRows(IEnumerable<IoTableRow> rows)
+    {
+        return rows.Select(row => new IoTableRow
+        {
+            InputAddress = row.InputAddress,
+            InputComment = row.InputComment,
+            OutputAddress = row.OutputAddress,
+            OutputComment = row.OutputComment
+        }).ToList();
+    }
+
+    private static List<string> BuildIoChangeLog(IReadOnlyList<IoTableRow> before, IReadOnlyList<IoTableRow> after)
+    {
+        var changes = new List<string>();
+        var max = Math.Max(before.Count, after.Count);
+
+        for (var index = 0; index < max; index++)
+        {
+            var oldRow = index < before.Count ? before[index] : null;
+            var newRow = index < after.Count ? after[index] : null;
+            var rowNo = index + 1;
+
+            if (oldRow is null && newRow is not null)
+            {
+                if (HasIoRowContent(newRow))
+                {
+                    changes.Add($"第 {rowNo} 行新增：输入地址 {FormatIoValue(newRow.InputAddress)}，输入注释 {FormatIoValue(newRow.InputComment)}，输出地址 {FormatIoValue(newRow.OutputAddress)}，输出注释 {FormatIoValue(newRow.OutputComment)}");
+                }
+
+                continue;
+            }
+
+            if (oldRow is not null && newRow is null)
+            {
+                if (HasIoRowContent(oldRow))
+                {
+                    changes.Add($"第 {rowNo} 行删除：输入地址 {FormatIoValue(oldRow.InputAddress)}，输入注释 {FormatIoValue(oldRow.InputComment)}，输出地址 {FormatIoValue(oldRow.OutputAddress)}，输出注释 {FormatIoValue(oldRow.OutputComment)}");
+                }
+
+                continue;
+            }
+
+            if (oldRow is null || newRow is null)
+            {
+                continue;
+            }
+
+            AppendIoFieldChange(changes, rowNo, "输入地址", oldRow.InputAddress, newRow.InputAddress);
+            AppendIoFieldChange(changes, rowNo, "输入注释", oldRow.InputComment, newRow.InputComment, newRow.InputAddress, oldRow.InputAddress);
+            AppendIoFieldChange(changes, rowNo, "输出地址", oldRow.OutputAddress, newRow.OutputAddress);
+            AppendIoFieldChange(changes, rowNo, "输出注释", oldRow.OutputComment, newRow.OutputComment, newRow.OutputAddress, oldRow.OutputAddress);
+        }
+
+        return changes;
+    }
+
+    private static void AppendIoFieldChange(ICollection<string> changes, int rowNo, string fieldName, string beforeValue, string afterValue, string? currentAddress = null, string? previousAddress = null)
+    {
+        if (string.Equals(beforeValue, afterValue, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var addressNote = BuildIoAddressNote(fieldName, currentAddress, previousAddress);
+        changes.Add($"第 {rowNo} 行 {fieldName}{addressNote}：{FormatIoValue(beforeValue)} -> {FormatIoValue(afterValue)}");
+    }
+
+    private static string BuildIoAddressNote(string fieldName, string? currentAddress, string? previousAddress)
+    {
+        if (!fieldName.Contains("注释", StringComparison.Ordinal))
+        {
+            return string.Empty;
+        }
+
+        var address = !string.IsNullOrWhiteSpace(currentAddress) ? currentAddress : previousAddress;
+        return string.IsNullOrWhiteSpace(address) ? string.Empty : $"（地址 {address.Trim()}）";
+    }
+
+    private static bool HasIoRowContent(IoTableRow row)
+    {
+        return !string.IsNullOrWhiteSpace(row.InputAddress)
+            || !string.IsNullOrWhiteSpace(row.InputComment)
+            || !string.IsNullOrWhiteSpace(row.OutputAddress)
+            || !string.IsNullOrWhiteSpace(row.OutputComment);
+    }
+
+    private static string FormatIoValue(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "（空）" : value.Trim();
+    }
+
+    private static string BuildIoHistoryEntry(string filePath, IReadOnlyCollection<string> changeLines)
+    {
+        var builder = new StringBuilder();
+        builder.AppendLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 保存文件：{Path.GetFileName(filePath)}");
+
+        if (changeLines.Count > 0)
+        {
+            foreach (var line in changeLines)
+            {
+                builder.AppendLine($"- {line}");
+            }
+        }
+
+        builder.AppendLine();
+        return builder.ToString();
+    }
+
+    [RelayCommand]
+    private async Task GenerateIoProgramsAsync()
+    {
+        try
+        {
+            if (CanSaveIoTable)
+            {
+                await SaveIoTableToSourceAsync();
+            }
+
+            var result = await _ioProgramGenerationService.GenerateAsync(
+                IoTableRows,
+                new IoGenerationSettings
+                {
+                    PlcType = SelectedIoPlcTemplate,
+                    OperationNumber = IoOperationNumber
+                },
+                GetApplicationRoot());
+
+            GeneratedIoPrograms.Clear();
+            foreach (var artifact in result.Artifacts) GeneratedIoPrograms.Add(artifact);
+            SelectedGeneratedIoProgram = GeneratedIoPrograms.FirstOrDefault();
+            GeneratedIoOutputDirectory = result.OutputDirectory;
+            RebuildManualCylinderBlocksFromIo();
+            RefreshIoGenerationSummary(result);
+            SystemMessage = $"IO 程序已生成：{result.OutputDirectory}";
+            AddLog("IO 生成", $"{SystemMessage}（输入 {result.InputCount} / 输出 {result.OutputCount}）", "Info");
+        }
+        catch (Exception ex)
+        {
+            SystemMessage = $"手动程序生成失败：{ex.Message}";
+            AddLog("IO 生成", SystemMessage, "Error");
+            ShowPopup("生成失败", ex.Message, "Error");
+        }
+    }
+
+    [RelayCommand]
+    private void ResetAutoProgramFlow()
+    {
+        SeedAutoProgramFlow();
+        GeneratedAutoPrograms.Clear();
+        SelectedGeneratedAutoProgram = null;
+        GeneratedAutoOutputDirectory = string.Empty;
+        SystemMessage = "自动流程已重置为标准骨架";
+    }
+
+    [RelayCommand]
+    private void AddAutoProgramStep()
+    {
+        var nextStepNo = AutoProgramFlowNodes.Count == 0 ? 10 : AutoProgramFlowNodes.Max(x => x.StepNo) + 10;
+        AutoProgramFlowNodes.Add(new AutoProgramFlowNode
+        {
+            StepNo = nextStepNo,
+            Title = $"新步骤 {nextStepNo:000}",
+            Action = "补充动作说明",
+            NextStep = "END",
+            Left = 70,
+            Top = 80 + AutoProgramFlowNodes.Count * 130,
+            Fill = "#E0F2FE"
+        });
+        RebuildAutoFlowLayout();
+        SystemMessage = $"已新增自动流程节点 STEP {nextStepNo:000}";
+    }
+
+    [RelayCommand]
+    private async Task GenerateAutoProgramsAsync()
+    {
+        try
+        {
+            var projectRoot = GetApplicationRoot();
+            var outputDirectory = Path.Combine(projectRoot, "Generated", "AutoProgram");
+            Directory.CreateDirectory(outputDirectory);
+
+            var orderedNodes = AutoProgramFlowNodes.OrderBy(x => x.StepNo).ToList();
+            var stationNo = ResolveStationNo(AutoProgramStation);
+            var controlDb = $"DB{ResolveOperationBaseNumber(IoOperationNumber)}_Control";
+            var autoTemplate = ReadGenerationTemplate("Auto.txt");
+            var initTemplate = ReadGenerationTemplate("Init.txt");
+            var autoProgram = BuildAutoTemplateProgram(autoTemplate, controlDb, stationNo, orderedNodes);
+            var initProgram = BuildInitTemplateProgram(initTemplate, controlDb, stationNo, orderedNodes);
+            var chartBuilder = new StringBuilder();
+            chartBuilder.AppendLine($"娴佺▼鍚嶇О锛{AutoProgramName}");
+            chartBuilder.AppendLine($"宸ヤ綅锛{AutoProgramStation}");
+            chartBuilder.AppendLine($"鐢熸垚鏃堕棿锛{DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+            chartBuilder.AppendLine();
+            foreach (var node in orderedNodes)
+            {
+                chartBuilder.AppendLine($"{node.StepCode}  {node.Title}");
+                chartBuilder.AppendLine($"鍔ㄤ綔锛{node.Action}");
+                chartBuilder.AppendLine($"娴佸悜锛{node.NextStep}");
+                chartBuilder.AppendLine();
+            }
+
+            var artifacts = new[]
+            {
+                CreateGeneratedArtifact(outputDirectory, $"{IoOperationNumber}_AutoRun_{AutoProgramStation}.txt", autoProgram),
+                CreateGeneratedArtifact(outputDirectory, $"{IoOperationNumber}_Init_{AutoProgramStation}.txt", initProgram),
+                CreateGeneratedArtifact(outputDirectory, $"{AutoProgramStation}_FlowChart.txt", chartBuilder.ToString())
+            };
+
+            GeneratedAutoPrograms.Clear();
+            foreach (var artifact in artifacts)
+            {
+                GeneratedAutoPrograms.Add(artifact);
+            }
+
+            SelectedGeneratedAutoProgram = GeneratedAutoPrograms.FirstOrDefault();
+            GeneratedAutoOutputDirectory = outputDirectory;
+            RefreshAutoProgramSummary();
+            SystemMessage = $"鑷姩绋嬪簭宸茬敓鎴愶細{outputDirectory}";
+            AddLog("自动程序", $"{AutoProgramName} 已生成 {artifacts.Length} 个文件", "Info");
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            SystemMessage = $"鑷姩绋嬪簭鐢熸垚澶辫触锛{ex.Message}";
+            AddLog("鑷姩绋嬪簭", SystemMessage, "Error");
+            ShowPopup("鐢熸垚澶辫触", ex.Message, "Error");
+        }
+    }
+
+    [RelayCommand]
+    private void OpenGeneratedIoFolder()
+    {
+        try
+        {
+            _ioProgramGenerationService.OpenOutputDirectory(GeneratedIoOutputDirectory);
+        }
+        catch (Exception ex)
+        {
+            SystemMessage = $"鎵撳紑鐢熸垚鐩綍澶辫触锛{ex.Message}";
+            AddLog("IO 鐢熸垚", SystemMessage, "Error");
+            ShowPopup("鎵撳紑澶辫触", ex.Message, "Error");
+        }
+    }
+
+    [RelayCommand]
+    private void OpenGeneratedAutoFolder()
+    {
+        try
+        {
+            _ioProgramGenerationService.OpenOutputDirectory(GeneratedAutoOutputDirectory);
+        }
+        catch (Exception ex)
+        {
+            SystemMessage = $"鎵撳紑鑷姩绋嬪簭鐩綍澶辫触锛{ex.Message}";
+            AddLog("鑷姩绋嬪簭", SystemMessage, "Error");
+            ShowPopup("鎵撳紑澶辫触", ex.Message, "Error");
+        }
+    }
+
+    [RelayCommand]
+    private void OpenGeneratedIoFile(GeneratedProgramArtifact? artifact)
+    {
+        if (artifact is null)
+        {
+            return;
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = artifact.OutputPath,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            SystemMessage = $"鎵撳紑绋嬪簭鏂囦欢澶辫触锛{ex.Message}";
+            AddLog("IO 鐢熸垚", SystemMessage, "Error");
+        }
     }
 
     [RelayCommand]
@@ -1270,6 +1928,13 @@ public partial class MainViewModel : ObservableObject
                 CurrentAlarmSubSection = target == "报警画面" ? "当前报警" : target;
                 CurrentSection = CurrentAlarmSubSection;
                 break;
+            case "设计器":
+            case "画布设计":
+            case "手动程序生成":
+            case "自动程序生成":
+                CurrentDesignerSubSection = target == "设计器" ? "画布设计" : target;
+                CurrentSection = CurrentDesignerSubSection;
+                break;
             default:
                 CurrentSection = target;
                 break;
@@ -1286,13 +1951,13 @@ public partial class MainViewModel : ObservableObject
         DesignerElements.Clear();
         switch (template)
         {
-            case "主画面":
+            case "主界面":
                 DesignerElements.Add(CreateDesignerElement("PageButton", 40, 20, "去报警页", navigationTarget: "报警画面"));
                 DesignerElements.Add(CreateDesignerElement("Motor", 40, 100, "电机1", "Y_RunLamp"));
                 DesignerElements.Add(CreateDesignerElement("Cylinder", 280, 100, "气缸1", "Cylinder_Extend"));
-                DesignerElements.Add(CreateDesignerElement("Robot", 520, 100, "机械手", "Robot_Run"));
+                DesignerElements.Add(CreateDesignerElement("Robot", 520, 100, "机械手1", "Robot_Run"));
                 DesignerElements.Add(CreateDesignerElement("Stopper", 760, 100, "挡停1", "Stopper_Up"));
-                DesignerElements.Add(CreateDesignerElement("Axis", 1000, 100, "轴模块", "Axis1_Pos"));
+                DesignerElements.Add(CreateDesignerElement("Axis", 1000, 100, "轴模块1", "Axis1_Pos"));
                 break;
             case "监控画面":
                 DesignerElements.Add(CreateDesignerElement("Indicator", 40, 80, "运行灯", "Y_RunLamp"));
@@ -1331,7 +1996,8 @@ public partial class MainViewModel : ObservableObject
         DesignerElements.Add(element);
         SelectedDesignerElement = element;
         SyncCanvasToPage();
-        CurrentSection = "设计器";
+        CurrentDesignerSubSection = "画布设计";
+        CurrentSection = "画布设计";
         SystemMessage = $"已添加模块：{type}";
         AddLog("设计器", SystemMessage, "Info");
     }
@@ -1454,48 +2120,77 @@ public partial class MainViewModel : ObservableObject
 
     private async Task ExecuteRuntimeElementActionAsync(DesignerElement element)
     {
-        switch (element.ElementType)
+        var action = string.IsNullOrWhiteSpace(element.CommandBinding)
+            ? GetDefaultDesignerAction(element.ElementType)
+            : element.CommandBinding;
+
+        switch (action)
         {
-            case "PageButton": if (!string.IsNullOrWhiteSpace(element.NavigationTarget)) NavigateToPage(element.NavigationTarget); break;
-            case "Button":
-            case "Motor":
-            case "Cylinder":
-            case "Stopper":
-            case "Robot": await ToggleBoundBooleanTagAsync(element.TagBinding, element.Text); break;
+            case "页面跳转":
+                if (!string.IsNullOrWhiteSpace(element.NavigationTarget))
+                {
+                    NavigateToPage(element.NavigationTarget);
+                }
+                break;
+            case "变量翻转":
+                await ToggleBoundBooleanTagAsync(element.TagBinding, element.Text);
+                break;
+            case "置位":
+                await PulseOrWriteBoundTagAsync(element.TagBinding, true, false, element.Text);
+                break;
+            case "复位":
+                await PulseOrWriteBoundTagAsync(element.TagBinding, false, false, element.Text);
+                break;
+            case "脉冲":
+                await PulseOrWriteBoundTagAsync(element.TagBinding, true, true, element.Text);
+                break;
+            case "气缸回原":
+                await SetCylinderPositionAsync(null, false, element.Text);
+                break;
+            case "气缸动点":
+                await SetCylinderPositionAsync(null, true, element.Text);
+                break;
         }
     }
+
+    private static string GetDefaultDesignerAction(string elementType) => elementType switch
+    {
+        "PageButton" => "页面跳转",
+        "Button" or "Motor" or "Cylinder" or "Stopper" or "Robot" => "变量翻转",
+        _ => string.Empty
+    };
 
     private async Task ToggleBoundBooleanTagAsync(string tagName, string sourceText)
     {
         if (!CanOperateDevices) { ShowPopup("权限不足", "当前权限不足，无法操作设备。", "Error"); return; }
         if (tagName.Equals("Cylinder_Extend", StringComparison.OrdinalIgnoreCase) && GetBoolTag("Alarm_EStop"))
         {
-            ShowPopup("联锁禁止", "急停报警未恢复，不能操作气缸。", "Interlock" );
+            ShowPopup("联锁禁止", "急停报警未恢复，不能操作气缸。", "Interlock");
             return;
         }
         if (tagName.Equals("Cylinder_Extend", StringComparison.OrdinalIgnoreCase) && GetBoolTag("Y_RunLamp") && !AllowManualCylinderWhenAuto)
         {
-            ShowPopup("联锁禁止", "设备自动运行中，不能手动切换气缸。", "Interlock" );
+            ShowPopup("联锁禁止", "设备自动运行中，不能手动切换气缸。", "Interlock");
             return;
         }
         if (tagName.Equals("Cylinder_Extend", StringComparison.OrdinalIgnoreCase) && !GetBoolTag("Cylinder_BwdLS") && !GetBoolTag("Cylinder_FwdLS"))
         {
-            ShowPopup("联锁禁止", "气缸当前处于中间状态，禁止再次切换。", "Interlock" );
+            ShowPopup("联锁禁止", "气缸当前处于中间状态，禁止再次切换。", "Interlock");
             return;
         }
         if (tagName.Equals("Stopper_Up", StringComparison.OrdinalIgnoreCase) && GetBoolTag("Y_RunLamp") && !AllowManualStopperWhenAuto)
         {
-            ShowPopup("联锁禁止", "设备自动运行中，不能手动切换挡停。", "Interlock" );
+            ShowPopup("联锁禁止", "设备自动运行中，不能手动切换挡停。", "Interlock");
             return;
         }
         if (tagName.Equals("Robot_Run", StringComparison.OrdinalIgnoreCase) && GetBoolTag("Axis1_Alarm"))
         {
-            ShowPopup("联锁禁止", "轴存在报警，不能启动机械手。", "Interlock" );
+            ShowPopup("联锁禁止", "轴存在报警，不能启动机械手。", "Interlock");
             return;
         }
         if (tagName.Equals("Robot_Run", StringComparison.OrdinalIgnoreCase) && !GetBoolTag("Axis1_Enable"))
         {
-            ShowPopup("联锁禁止", "轴未使能，不能启动机械手。", "Interlock" );
+            ShowPopup("联锁禁止", "轴未使能，不能启动机械手。", "Interlock");
             return;
         }
         var tag = Tags.FirstOrDefault(t => t.Name.Equals(tagName, StringComparison.OrdinalIgnoreCase));
@@ -1544,6 +2239,122 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
+    private async Task PulseOrWriteBoundTagAsync(string tagName, bool value, bool pulse, string sourceText)
+    {
+        if (!CanOperateDevices)
+        {
+            ShowPopup("权限不足", "当前权限不足，无法操作设备。", "Error");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(tagName))
+        {
+            ShowPopup("操作失败", "当前控件未绑定变量。", "Warning");
+            return;
+        }
+
+        var tag = Tags.FirstOrDefault(t => t.Name.Equals(tagName, StringComparison.OrdinalIgnoreCase));
+        if (tag is null)
+        {
+            ShowPopup("操作失败", $"未找到绑定变量：{tagName}", "Error");
+            return;
+        }
+
+        if (!tag.IsWritable)
+        {
+            ShowPopup("操作失败", $"变量不可写：{tag.Name}", "Warning");
+            return;
+        }
+
+        try
+        {
+            await _opcUaService.WriteTagAsync(tag, value);
+            tag.CurrentValue = value.ToString();
+            AddLog("运行态", $"{sourceText} -> {tag.Name} = {value}", "Info");
+            AddAudit("设备操作", tag.Name, "成功", sourceText);
+
+            if (pulse)
+            {
+                await Task.Delay(120);
+                await _opcUaService.WriteTagAsync(tag, false);
+                tag.CurrentValue = "False";
+            }
+
+            UpdateRuntimeVisuals();
+        }
+        catch (Exception ex)
+        {
+            SystemMessage = $"运行态操作失败：{ex.Message}";
+            AddLog("运行态", SystemMessage, "Error");
+            AddAudit("设备操作", tagName, "失败", SystemMessage);
+        }
+    }
+
+    private async Task SetCylinderPositionAsync(ManualCylinderBlockItem? block, bool extend, string sourceText)
+    {
+        if (!CanOperateDevices)
+        {
+            SystemMessage = "当前权限不足，无法操作气缸";
+            return;
+        }
+
+        {
+            var configuredCommandTag = block is not null
+                ? FindTagByNameOrNodeId(extend ? block.WorkCommandTagName : block.HomeCommandTagName)
+                : !string.IsNullOrWhiteSpace(extend ? CylinderWorkCommandTagName : CylinderHomeCommandTagName)
+                    ? FindTagByNameOrNodeId(extend ? CylinderWorkCommandTagName : CylinderHomeCommandTagName)
+                    : null;
+            var importedCommandTag = configuredCommandTag ?? FindImportedCylinderTag(extend ? ".Cmd.ManuToWork" : ".Cmd.ManuToHome");
+            var tag = importedCommandTag ?? Tags.FirstOrDefault(t => t.Name.Equals("Cylinder_Extend", StringComparison.OrdinalIgnoreCase));
+            if (tag is null)
+            {
+                ShowPopup("操作失败", "未找到气缸输出变量：Cylinder_Extend / Cmd.ManuToHome / Cmd.ManuToWork", "Error");
+                return;
+            }
+
+            try
+            {
+                var stopwatch = Stopwatch.StartNew();
+                if (importedCommandTag is not null)
+                {
+                    await _opcUaService.WriteTagAsync(tag, true);
+                    tag.CurrentValue = "True";
+                    await Task.Delay(120);
+                    await _opcUaService.WriteTagAsync(tag, false);
+                    tag.CurrentValue = "False";
+                    await RefreshTagsAsync();
+                }
+                else
+                {
+                    await _opcUaService.WriteTagAsync(tag, extend);
+                    tag.CurrentValue = extend.ToString();
+                    SetTagValue("Cylinder_FwdLS", extend ? "True" : "False");
+                    SetTagValue("Cylinder_BwdLS", extend ? "False" : "True");
+                }
+                stopwatch.Stop();
+                var configuredDelay = extend ? CylinderWorkDelaySetting : CylinderHomeDelaySetting;
+                var durationText = double.TryParse(configuredDelay, NumberStyles.Float, CultureInfo.InvariantCulture, out var configuredSeconds)
+                    ? $"{Math.Max(configuredSeconds, stopwatch.Elapsed.TotalSeconds):0.000} s"
+                    : $"{stopwatch.Elapsed.TotalSeconds:0.000} s";
+                CylinderCurrentActionTimeDisplay = durationText;
+                CylinderLastActionTimeDisplay = durationText;
+                CylinderActionCount += 1;
+                EvaluateTagState(tag);
+                SystemMessage = $"{sourceText}完成";
+                AddLog("气缸控制", $"{sourceText} -> {tag.Name} = {(importedCommandTag is not null ? "Pulse" : extend.ToString())}", "Info");
+                AddAudit("气缸控制", tag.Name, "成功", sourceText);
+                UpdateRuntimeVisuals();
+            }
+            catch (Exception ex)
+            {
+                SystemMessage = "气缸操作失败：" + ex.Message;
+                AddLog("气缸控制", SystemMessage, "Error");
+            }
+
+            return;
+        }
+    }
+
     private async Task SetExclusiveModeAsync(string targetTagName, string modeName)
     {
         if (!CanOperateDevices)
@@ -1569,7 +2380,7 @@ public partial class MainViewModel : ObservableObject
             }
         }
 
-        AddLog("模式切换", $"已切换到{modeName}", "Info");
+        AddLog("模式切换", $"已切换到 {modeName}", "Info");
         AddAudit("模式切换", targetTagName, "成功", modeName);
         UpdateRuntimeVisuals();
     }
@@ -1651,14 +2462,14 @@ public partial class MainViewModel : ObservableObject
     private void SeedParameters()
     {
         Parameters.Add(new ParameterItem { Category = "系统参数", Name = "设备节拍", Value = "3.5", Unit = "s", Description = "设备标准节拍", MinRole = UserRole.Engineer });
-        Parameters.Add(new ParameterItem { Category = "轴参数", Name = "轴1速度", Value = "250", Unit = "mm/s", Description = "轴1运行速度", MinRole = UserRole.Engineer });
+        Parameters.Add(new ParameterItem { Category = "轴参数", Name = "轴速度", Value = "250", Unit = "mm/s", Description = "轴运行速度", MinRole = UserRole.Engineer });
         Parameters.Add(new ParameterItem { Category = "气缸参数", Name = "气缸延时", Value = "0.2", Unit = "s", Description = "气缸动作延时", MinRole = UserRole.Engineer });
         Parameters.Add(new ParameterItem { Category = "真空参数", Name = "真空检测超时", Value = "1.0", Unit = "s", Description = "真空建立超时时间", MinRole = UserRole.Administrator });
         Parameters.Add(new ParameterItem { Category = "传感器参数", Name = "滤波时间", Value = "50", Unit = "ms", Description = "传感器滤波时间", MinRole = UserRole.Engineer });
         Parameters.Add(new ParameterItem { Category = "联锁规则", Name = "自动运行允许手动气缸", Value = "false", Unit = "bool", Description = "决定自动运行时是否允许手动切换气缸", MinRole = UserRole.Administrator });
         Parameters.Add(new ParameterItem { Category = "联锁规则", Name = "自动运行允许手动挡停", Value = "false", Unit = "bool", Description = "决定自动运行时是否允许手动切换挡停", MinRole = UserRole.Administrator });
         Parameters.Add(new ParameterItem { Category = "联锁规则", Name = "机械手运行时允许复位", Value = "false", Unit = "bool", Description = "决定机械手运行中是否允许执行复位", MinRole = UserRole.Administrator });
-        Parameters.Add(new ParameterItem { Category = "联锁规则", Name = "轴报警时允许运动", Value = "false", Unit = "bool", Description = "决定轴报警状态下是否允许Jog/定位/回零", MinRole = UserRole.Administrator });
+        Parameters.Add(new ParameterItem { Category = "联锁规则", Name = "轴报警时允许运动", Value = "false", Unit = "bool", Description = "决定轴报警状态下是否允许 Jog/定位/回零", MinRole = UserRole.Administrator });
     }
 
     private void BuildNavigation()
@@ -1669,7 +2480,7 @@ public partial class MainViewModel : ObservableObject
         NavigationItems.Add(new NavigationItemViewModel("参数设定", "系统参数设定", "轴参数设定", "气缸参数设定", "真空参数设定", "传感器参数设定"));
         NavigationItems.Add(new NavigationItemViewModel("报警画面", "当前报警", "历史报警", "日志", "报警统计"));
         NavigationItems.Add(new NavigationItemViewModel("登录"));
-        NavigationItems.Add(new NavigationItemViewModel("设计器", "工具箱", "画布", "属性编辑器", "页面管理", "运行态"));
+        NavigationItems.Add(new NavigationItemViewModel("设计器", "画布设计", "手动程序生成", "自动程序生成"));
     }
 
     private static int ResolveTabIndex(string? section)
@@ -1689,7 +2500,7 @@ public partial class MainViewModel : ObservableObject
             "报警画面" or "当前报警" or "历史报警" or "日志" or "报警统计" => 5,
             "登录" or "登录权限" => 6,
             "操作审计" => 7,
-            "设计器" or "工具箱" or "画布" or "属性编辑器" or "页面管理" or "运行态" => 8,
+            "设计器" or "画布设计" or "手动程序生成" or "自动程序生成" => 8,
             _ => 0
         };
     }
@@ -1720,7 +2531,7 @@ public partial class MainViewModel : ObservableObject
             "报警画面" or "当前报警" or "历史报警" or "日志" or "报警统计" => "报警画面",
             "登录" or "登录权限" => "登录",
             "操作审计" => "操作审计",
-            "设计器" or "工具箱" or "画布" or "属性编辑器" or "页面管理" or "运行态" => "设计器",
+            "设计器" or "画布设计" or "手动程序生成" or "自动程序生成" => "设计器",
             _ => string.Empty
         };
     }
@@ -1775,20 +2586,20 @@ public partial class MainViewModel : ObservableObject
 
         EventBindings.Add(new EventBinding { TagName = "Alarm_EStop", TriggerCondition = "True", EventName = "急停报警", ActionTarget = "当前报警", ActionParameter = "急停触发", Description = "E-Stop 触发时写入报警" });
         EventBindings.Add(new EventBinding { TagName = "Motor1_Fault", TriggerCondition = "True", EventName = "电机故障", ActionTarget = "当前报警", ActionParameter = "电机1故障", Description = "电机故障报警" });
-        EventBindings.Add(new EventBinding { TagName = "Axis1_Alarm", TriggerCondition = "True", EventName = "轴报警", ActionTarget = "当前报警", ActionParameter = "轴1报警", Description = "轴故障报警" });
+        EventBindings.Add(new EventBinding { TagName = "Axis1_Alarm", TriggerCondition = "True", EventName = "轴报警", ActionTarget = "当前报警", ActionParameter = "轴报警", Description = "轴故障报警" });
         EventBindings.Add(new EventBinding { TagName = "Alarm_AirLow", TriggerCondition = "True", EventName = "气压报警", ActionTarget = "当前报警", ActionParameter = "气源不足", Description = "气压不足报警" });
         EventBindings.Add(new EventBinding { TagName = "Alarm_ServoOverload", TriggerCondition = "True", EventName = "伺服过载", ActionTarget = "当前报警", ActionParameter = "轴过载", Description = "伺服过载报警" });
         EventBindings.Add(new EventBinding { TagName = "Alarm_VacuumTimeout", TriggerCondition = "True", EventName = "真空超时", ActionTarget = "当前报警", ActionParameter = "真空建立失败", Description = "真空报警" });
 
         CurrentAlarms.Add(new AlarmRecord { Time = DateTime.Now, Level = "Warning", Source = "Alarm_AirLow", Message = "示例报警：气压低", Active = true, Acknowledged = false, State = "Active", Count = 4 });
         CurrentAlarms.Add(new AlarmRecord { Time = DateTime.Now.AddMinutes(-3), Level = "Alarm", Source = "Motor1_Fault", Message = "电机故障 - 电机1故障", Active = true, Acknowledged = false, State = "Active", Count = 2 });
-        _activeAlarmMap["Alarm_AirLow|气压不足"] = CurrentAlarms[0];
+        _activeAlarmMap["Alarm_AirLow|气源不足"] = CurrentAlarms[0];
         _activeAlarmMap["Motor1_Fault|电机1故障"] = CurrentAlarms[1];
         AlarmHistory.Add(new AlarmRecord { Time = DateTime.Now.AddMinutes(-60), Level = "Error", Source = "Alarm_EStop", Message = "急停触发", Active = false, Acknowledged = true, ClearTime = DateTime.Now.AddMinutes(-58), State = "Cleared", Count = 1 });
         AlarmHistory.Add(new AlarmRecord { Time = DateTime.Now.AddMinutes(-40), Level = "Warning", Source = "Alarm_AirLow", Message = "气压报警 - 气源不足", Active = false, Acknowledged = true, ClearTime = DateTime.Now.AddMinutes(-35), State = "Cleared", Count = 6 });
         AlarmHistory.Add(new AlarmRecord { Time = DateTime.Now.AddMinutes(-25), Level = "Alarm", Source = "Motor1_Fault", Message = "电机故障 - 电机1故障", Active = false, Acknowledged = true, ClearTime = DateTime.Now.AddMinutes(-20), State = "Cleared", Count = 3 });
-        AlarmHistory.Add(new AlarmRecord { Time = DateTime.Now.AddMinutes(-15), Level = "Alarm", Source = "Axis1_Alarm", Message = "轴报警 - 轴1报警", Active = false, Acknowledged = true, ClearTime = DateTime.Now.AddMinutes(-10), State = "Cleared", Count = 2 });
-        Logs.Add(new AlarmRecord { Time = DateTime.Now, Level = "Info", Source = "ϵͳ", Message = "程序启动", Active = false, Acknowledged = true, State = "Logged", Count = 1 });
+        AlarmHistory.Add(new AlarmRecord { Time = DateTime.Now.AddMinutes(-15), Level = "Alarm", Source = "Axis1_Alarm", Message = "轴报警 - 轴报警", Active = false, Acknowledged = true, ClearTime = DateTime.Now.AddMinutes(-10), State = "Cleared", Count = 2 });
+        Logs.Add(new AlarmRecord { Time = DateTime.Now, Level = "Info", Source = "系统", Message = "程序启动", Active = false, Acknowledged = true, State = "Logged", Count = 1 });
         Logs.Add(new AlarmRecord { Time = DateTime.Now.AddMinutes(-2), Level = "Info", Source = "生产", Message = "当前班次累计 460 件，目标 1500 件", Active = false, Acknowledged = true, State = "Logged", Count = 1 });
         OnPropertyChanged(nameof(TagCount));
         OnPropertyChanged(nameof(AlarmCount));
@@ -1796,7 +2607,7 @@ public partial class MainViewModel : ObservableObject
 
     private void SeedDesignerData()
     {
-        var mainPage = new DesignerPage { Name = "主界面", CanvasWidth = 1280, CanvasHeight = 720, Elements = new() { CreateDesignerElement("PageButton", 40, 20, "去报警页", navigationTarget: "报警画面"), CreateDesignerElement("Button", 40, 80, "启动按钮", "Y_RunLamp"), CreateDesignerElement("Indicator", 220, 80, "运行灯", "Y_RunLamp"), CreateDesignerElement("ValueDisplay", 400, 80, "轴位置", "Axis1_Pos"), CreateDesignerElement("Motor", 40, 180, "电机1", "Y_RunLamp"), CreateDesignerElement("Cylinder", 260, 180, "气缸1", "Cylinder_Extend"), CreateDesignerElement("Axis", 480, 180, "轴模块", "Axis1_Pos"), CreateDesignerElement("Robot", 720, 180, "机械手", "Robot_Run"), CreateDesignerElement("Stopper", 960, 180, "挡停1", "Stopper_Up") } };
+        var mainPage = new DesignerPage { Name = "主界面", CanvasWidth = 1280, CanvasHeight = 720, Elements = new() { CreateDesignerElement("PageButton", 40, 20, "去报警页", navigationTarget: "报警画面"), CreateDesignerElement("Button", 40, 80, "启动按钮", "Y_RunLamp"), CreateDesignerElement("Indicator", 220, 80, "运行灯", "Y_RunLamp"), CreateDesignerElement("ValueDisplay", 400, 80, "轴位置", "Axis1_Pos"), CreateDesignerElement("Motor", 40, 180, "电机1", "Y_RunLamp"), CreateDesignerElement("Cylinder", 260, 180, "气缸1", "Cylinder_Extend"), CreateDesignerElement("Axis", 480, 180, "轴模块1", "Axis1_Pos"), CreateDesignerElement("Robot", 720, 180, "机械手1", "Robot_Run"), CreateDesignerElement("Stopper", 960, 180, "挡停1", "Stopper_Up") } };
         var alarmPage = new DesignerPage { Name = "报警画面", CanvasWidth = 1280, CanvasHeight = 720, Elements = new() { CreateDesignerElement("PageButton", 40, 20, "返回主界面", navigationTarget: "主界面"), CreateDesignerElement("AlarmBanner", 40, 80, "当前报警", "Alarm_EStop") } };
         DesignerPages.Add(mainPage); DesignerPages.Add(alarmPage); SelectedDesignerPage = mainPage;
     }
@@ -1809,7 +2620,10 @@ public partial class MainViewModel : ObservableObject
         DesignerElements.Clear();
         foreach (var element in page.Elements.Select(CloneElement)) DesignerElements.Add(element);
         SelectedDesignerElement = DesignerElements.FirstOrDefault();
-        CurrentSection = $"设计器 - {page.Name}";
+        if (CurrentDesignerSubSection == "画布设计")
+        {
+            CurrentSection = "画布设计";
+        }
     }
 
     private void SyncCanvasToPage()
@@ -1823,6 +2637,7 @@ public partial class MainViewModel : ObservableObject
 
     private void UpdateRuntimeVisuals()
     {
+        RefreshManualCylinderBlockStates();
         foreach (var element in DesignerElements)
         {
             var tag = Tags.FirstOrDefault(t => t.Name.Equals(element.TagBinding, StringComparison.OrdinalIgnoreCase));
@@ -1836,29 +2651,29 @@ public partial class MainViewModel : ObservableObject
                     var motorRunning = GetBoolTag("Y_RunLamp");
                     var motorFault = GetBoolTag("Motor1_Fault");
                     element.Background = motorFault ? "#B91C1C" : motorRunning ? "#2563EB" : "#475569";
-                    element.Text = motorFault ? "⚙ 电机故障" : motorRunning ? "⚙ 电机运行" : "⚙ 电机停止";
+                    element.Text = motorFault ? "电机故障" : motorRunning ? "电机运行" : "电机停止";
                     break;
                 case "Cylinder":
                     var fwd = GetBoolTag("Cylinder_FwdLS");
                     var bwd = GetBoolTag("Cylinder_BwdLS");
                     element.Background = fwd ? "#059669" : bwd ? "#334155" : "#D97706";
-                    element.Text = fwd ? "▭→ 前到位" : bwd ? "←▭ 后到位" : "▭ 切换中";
+                    element.Text = fwd ? "前到位" : bwd ? "后到位" : "切换中";
                     break;
                 case "Axis":
                     var axisEnable = GetBoolTag("Axis1_Enable");
                     var axisAlarm = GetBoolTag("Axis1_Alarm");
                     element.Background = axisAlarm ? "#B91C1C" : axisEnable ? "#7C3AED" : "#475569";
-                    element.Text = axisAlarm ? $"⇆ 轴报警 Pos:{GetTagValue("Axis1_Pos")}" : axisEnable ? $"⇆ 轴使能 Pos:{GetTagValue("Axis1_Pos")}" : $"⇆ 轴未使能 Pos:{GetTagValue("Axis1_Pos")}";
+                    element.Text = axisAlarm ? $"轴报警 Pos:{GetTagValue("Axis1_Pos")}" : axisEnable ? $"轴使能 Pos:{GetTagValue("Axis1_Pos")}" : $"轴未使能 Pos:{GetTagValue("Axis1_Pos")}";
                     break;
                 case "Robot":
                     var robotRun = GetBoolTag("Robot_Run");
                     var robotPause = GetBoolTag("Robot_Pause");
                     element.Background = robotPause ? "#F59E0B" : robotRun ? "#DB2777" : "#475569";
-                    element.Text = robotPause ? "🤖 机械手暂停" : robotRun ? "🤖 机械手运行" : "🤖 机械手待机";
+                    element.Text = robotPause ? "机械手暂停" : robotRun ? "机械手运行" : "机械手待机";
                     break;
                 case "Stopper":
                     element.Background = tag.CurrentValue.Equals("True", StringComparison.OrdinalIgnoreCase) ? "#D97706" : "#475569";
-                    element.Text = tag.CurrentValue.Equals("True", StringComparison.OrdinalIgnoreCase) ? "⊥ 挡停升起" : "⊔ 挡停下降";
+                    element.Text = tag.CurrentValue.Equals("True", StringComparison.OrdinalIgnoreCase) ? "挡停升起" : "挡停下降";
                     break;
             }
         }
@@ -1885,6 +2700,19 @@ public partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(CurrentOrderText));
         OnPropertyChanged(nameof(MotorStatusText));
         OnPropertyChanged(nameof(CylinderStatusText));
+        OnPropertyChanged(nameof(CylinderForwardActive));
+        OnPropertyChanged(nameof(CylinderBackwardActive));
+        OnPropertyChanged(nameof(CylinderOutputActive));
+        OnPropertyChanged(nameof(CylinderOutputText));
+        OnPropertyChanged(nameof(CylinderCurrentStateText));
+        OnPropertyChanged(nameof(CylinderDisplayName));
+        OnPropertyChanged(nameof(CylinderActionHint));
+        OnPropertyChanged(nameof(CylinderInterlockBaseReady));
+        OnPropertyChanged(nameof(CylinderHomeInterlockActive));
+        OnPropertyChanged(nameof(CylinderMoveInterlockActive));
+        OnPropertyChanged(nameof(CylinderHomeInterlockText));
+        OnPropertyChanged(nameof(CylinderMoveInterlockText));
+        OnPropertyChanged(nameof(CylinderInterlockHint));
         OnPropertyChanged(nameof(AxisStatusText));
         OnPropertyChanged(nameof(RobotStatusText));
         OnPropertyChanged(nameof(IsDebugMode));
@@ -1913,14 +2741,14 @@ public partial class MainViewModel : ObservableObject
                             || (binding.TriggerCondition.Equals("True", StringComparison.OrdinalIgnoreCase) && tag.CurrentValue.Equals("True", StringComparison.OrdinalIgnoreCase));
             if (!triggered) continue;
             if (tag.IsAlarm) RaiseOrUpdateAlarm(tag.Name, binding.EventName, binding.ActionParameter);
-            else Logs.Insert(0, new AlarmRecord { Time = DateTime.Now, Level = "Info", Source = tag.Name, Message = $"事件 {binding.EventName} -> {binding.ActionTarget} {binding.ActionParameter}", Active = false, Acknowledged = true, State = "Logged", Count = 1 });
+            else Logs.Insert(0, new AlarmRecord { Time = DateTime.Now, Level = "Info", Source = tag.Name, Message = $"浜嬩欢 {binding.EventName} -> {binding.ActionTarget} {binding.ActionParameter}", Active = false, Acknowledged = true, State = "Logged", Count = 1 });
         }
     }
 
     private void EvaluateTagState(TagItem tag)
     {
         if (!tag.IsAlarm) return;
-        if (string.Equals(tag.CurrentValue, "True", StringComparison.OrdinalIgnoreCase)) RaiseOrUpdateAlarm(tag.Name, tag.Name, "报警触发");
+        if (string.Equals(tag.CurrentValue, "True", StringComparison.OrdinalIgnoreCase)) RaiseOrUpdateAlarm(tag.Name, tag.Name, "鎶ヨ瑙﹀彂");
         else ClearAlarm(tag.Name);
     }
 
@@ -1957,7 +2785,7 @@ public partial class MainViewModel : ObservableObject
         CurrentAlarms.Insert(0, alarm);
         AlarmHistory.Insert(0, new AlarmRecord { Time = alarm.Time, Level = alarm.Level, Source = alarm.Source, Message = alarm.Message, Active = true, Acknowledged = false, State = "Raised", Count = alarm.Count, HandlingSuggestion = alarm.HandlingSuggestion, CauseArchive = alarm.CauseArchive });
         _activeAlarmMap[key] = alarm;
-        Logs.Insert(0, new AlarmRecord { Time = DateTime.Now, Level = "Warning", Source = source, Message = $"报警触发：{alarm.Message}", Active = false, Acknowledged = true, State = "Logged", Count = 1 });
+        Logs.Insert(0, new AlarmRecord { Time = DateTime.Now, Level = "Warning", Source = source, Message = $"鎶ヨ瑙﹀彂锛{alarm.Message}", Active = false, Acknowledged = true, State = "Logged", Count = 1 });
         OnPropertyChanged(nameof(AlarmCount));
         RefreshAlarmStatistics();
     }
@@ -1972,8 +2800,8 @@ public partial class MainViewModel : ObservableObject
             alarm.ClearTime = DateTime.Now;
             alarm.State = alarm.Acknowledged ? "Cleared" : "Cleared-UnAck";
             CurrentAlarms.Remove(alarm);
-            AlarmHistory.Insert(0, new AlarmRecord { Time = alarm.Time, Level = alarm.Level, Source = alarm.Source, Message = $"恢复：{alarm.Message}", Active = false, Acknowledged = alarm.Acknowledged, AcknowledgedBy = alarm.AcknowledgedBy, ClearTime = DateTime.Now, State = "Cleared", Count = alarm.Count, HandlingSuggestion = alarm.HandlingSuggestion, CauseArchive = alarm.CauseArchive });
-            Logs.Insert(0, new AlarmRecord { Time = DateTime.Now, Level = "Info", Source = source, Message = $"报警恢复：{alarm.Message}", Active = false, Acknowledged = true, State = "Logged", Count = 1 });
+            AlarmHistory.Insert(0, new AlarmRecord { Time = alarm.Time, Level = alarm.Level, Source = alarm.Source, Message = $"鎭㈠锛{alarm.Message}", Active = false, Acknowledged = alarm.Acknowledged, AcknowledgedBy = alarm.AcknowledgedBy, ClearTime = DateTime.Now, State = "Cleared", Count = alarm.Count, HandlingSuggestion = alarm.HandlingSuggestion, CauseArchive = alarm.CauseArchive });
+            Logs.Insert(0, new AlarmRecord { Time = DateTime.Now, Level = "Info", Source = source, Message = $"鎶ヨ鎭㈠锛{alarm.Message}", Active = false, Acknowledged = true, State = "Logged", Count = 1 });
             _activeAlarmMap.Remove(key);
         }
         OnPropertyChanged(nameof(AlarmCount));
@@ -1998,7 +2826,7 @@ public partial class MainViewModel : ObservableObject
 
         var highSpeedRecipe = CreateRecipeFromCurrentParameters("产品B", "B-002", "V1.1", "高速工艺", false);
         UpdateRecipeParameterValue(highSpeedRecipe, "设备节拍", "3.0");
-        UpdateRecipeParameterValue(highSpeedRecipe, "轴1速度", "320");
+        UpdateRecipeParameterValue(highSpeedRecipe, "轴速度", "320");
         UpdateRecipeParameterValue(highSpeedRecipe, "气缸延时", "0.15");
         Recipes.Add(highSpeedRecipe);
 
@@ -2192,10 +3020,10 @@ public partial class MainViewModel : ObservableObject
     {
         FlowSteps.Clear();
         var now = DateTime.Now;
-        FlowSteps.Add(new FlowStepRecord { FlowId = "F1", FlowName = "主线1", Time = now.AddSeconds(-30), StartTime = now.AddSeconds(-33), EndTime = now.AddSeconds(-30), DurationSeconds = 3.0, StepNo = 10, Icon = "🟢", Title = "上料到位", Comment = "工件进入取料位", Result = "完成", ShiftKey = "白班", ArchiveDate = now.ToString("yyyy-MM-dd") });
-        FlowSteps.Add(new FlowStepRecord { FlowId = "F1", FlowName = "主线1", Time = now.AddSeconds(-24), StartTime = now.AddSeconds(-27), EndTime = now.AddSeconds(-24), DurationSeconds = 3.0, StepNo = 20, Icon = "🟢", Title = "气缸夹紧", Comment = "夹紧缸动作完成", Result = "完成", ShiftKey = "白班", ArchiveDate = now.ToString("yyyy-MM-dd") });
-        FlowSteps.Add(new FlowStepRecord { FlowId = "F2", FlowName = "主线2", Time = now.AddSeconds(-18), StartTime = now.AddSeconds(-22), EndTime = now.AddSeconds(-18), DurationSeconds = 4.0, StepNo = 30, Icon = "🟢", Title = "轴移动定位", Comment = "轴到达装配工位", Result = "完成", ShiftKey = "白班", ArchiveDate = now.ToString("yyyy-MM-dd") });
-        FlowSteps.Add(new FlowStepRecord { FlowId = "F3", FlowName = "主线3", Time = now.AddSeconds(-12), StartTime = now.AddSeconds(-17), EndTime = now.AddSeconds(-12), DurationSeconds = 5.0, StepNo = 40, Icon = "🟡", Title = "机械手取放", Comment = "等待真空确认信号", Result = "运行中", ShiftKey = "白班", ArchiveDate = now.ToString("yyyy-MM-dd") });
+        FlowSteps.Add(new FlowStepRecord { FlowId = "F1", FlowName = "主线1", Time = now.AddSeconds(-30), StartTime = now.AddSeconds(-33), EndTime = now.AddSeconds(-30), DurationSeconds = 3.0, StepNo = 10, Icon = "●", Title = "上料到位", Comment = "工件进入取料位", Result = "完成", ShiftKey = "白班", ArchiveDate = now.ToString("yyyy-MM-dd") });
+        FlowSteps.Add(new FlowStepRecord { FlowId = "F1", FlowName = "主线1", Time = now.AddSeconds(-24), StartTime = now.AddSeconds(-27), EndTime = now.AddSeconds(-24), DurationSeconds = 3.0, StepNo = 20, Icon = "●", Title = "气缸夹紧", Comment = "夹紧缸动作完成", Result = "完成", ShiftKey = "白班", ArchiveDate = now.ToString("yyyy-MM-dd") });
+        FlowSteps.Add(new FlowStepRecord { FlowId = "F2", FlowName = "主线2", Time = now.AddSeconds(-18), StartTime = now.AddSeconds(-22), EndTime = now.AddSeconds(-18), DurationSeconds = 4.0, StepNo = 30, Icon = "●", Title = "轴移动定位", Comment = "轴到达装配工位", Result = "完成", ShiftKey = "白班", ArchiveDate = now.ToString("yyyy-MM-dd") });
+        FlowSteps.Add(new FlowStepRecord { FlowId = "F3", FlowName = "主线3", Time = now.AddSeconds(-12), StartTime = now.AddSeconds(-17), EndTime = now.AddSeconds(-12), DurationSeconds = 5.0, StepNo = 40, Icon = "●", Title = "机械手取放", Comment = "等待真空确认信号", Result = "运行中", ShiftKey = "白班", ArchiveDate = now.ToString("yyyy-MM-dd") });
         CurrentFlowStepNo = 40;
         CurrentFlowComment = "等待真空确认信号，自动流程正在执行 STEP040";
     }
@@ -2253,11 +3081,11 @@ public partial class MainViewModel : ObservableObject
                 EndTime = now,
                 DurationSeconds = duration,
                 StepNo = nextStep,
-                Icon = abnormal ? "🔴" : nextStep == 40 ? "🟡" : "🟢",
+                Icon = abnormal ? "!" : nextStep == 40 ? ">" : "●",
                 Title = $"{flow.Name} STEP{nextStep:000}",
                 Comment = comment,
                 Result = abnormal ? "异常监视" : "运行中",
-                RelatedAlarm = relatedAlarm,
+                RelatedAlarm = relatedAlarm ?? string.Empty,
                 IsAbnormal = abnormal,
                 ShiftKey = "白班",
                 ArchiveDate = now.ToString("yyyy-MM-dd")
@@ -2390,10 +3218,10 @@ public partial class MainViewModel : ObservableObject
         {
             FlowIssueSummaries.Add(new FlowIssueSummary
             {
-                Category = "最易异常步序",
+                Category = "最易异常步骤",
                 Name = $"STEP {topAbnormalStep.Key:000}",
                 Metric = $"{topAbnormalStep.Count()} 次",
-                Conclusion = $"该步序最容易出现异常，可重点分析联锁与等待条件"
+                Conclusion = "该步骤最容易出现异常，可重点分析联锁与等待条件"
             });
         }
 
@@ -2442,11 +3270,39 @@ public partial class MainViewModel : ObservableObject
         MonitorTagsView.Filter = item =>
         {
             if (item is not TagItem tag) return false;
+            if (IsMonitorIoPageVisible)
+            {
+                return IsPlcIoTag(tag);
+            }
             if (SelectedMonitorCategory == "全部") return true;
             return tag.Category.Equals(SelectedMonitorCategory, StringComparison.OrdinalIgnoreCase)
                 || tag.Group.Equals(SelectedMonitorCategory, StringComparison.OrdinalIgnoreCase);
         };
         MonitorTagsView.Refresh();
+    }
+
+    private static bool IsPlcIoTag(TagItem tag)
+    {
+        var name = (tag.Name ?? string.Empty).Trim().ToUpperInvariant();
+        var nodeId = (tag.NodeId ?? string.Empty).Trim().ToUpperInvariant();
+        var category = (tag.Category ?? string.Empty).Trim().ToUpperInvariant();
+        var group = (tag.Group ?? string.Empty).Trim().ToUpperInvariant();
+
+        if (category == "IO" || group == "INPUT" || group == "OUTPUT")
+        {
+            return true;
+        }
+
+        var ioPrefixes = new[] { "X_", "Y_", "IX", "IB", "IW", "ID", "QX", "QB", "QW", "QD", "I", "Q", "X", "Y" };
+        if (ioPrefixes.Any(prefix => name.StartsWith(prefix, StringComparison.Ordinal)))
+        {
+            return true;
+        }
+
+        return nodeId.Contains(".X", StringComparison.Ordinal)
+            || nodeId.Contains(".Y", StringComparison.Ordinal)
+            || nodeId.Contains(".I", StringComparison.Ordinal)
+            || nodeId.Contains(".Q", StringComparison.Ordinal);
     }
 
     private void RefreshAlarmStatistics()
@@ -2569,6 +3425,40 @@ public partial class MainViewModel : ObservableObject
 
     private bool CanEditParameter(ParameterItem parameter) => CurrentUserRole >= parameter.MinRole;
     private bool GetBoolTag(string tagName) => string.Equals(GetTagValue(tagName), "True", StringComparison.OrdinalIgnoreCase);
+    private bool GetCylinderBool(string configuredTagName, string primarySuffix = "", string? secondarySuffix = null, string fallbackTagName = "", bool fallbackValue = false)
+    {
+        if (!string.IsNullOrWhiteSpace(configuredTagName))
+        {
+            var configuredTag = FindTagByNameOrNodeId(configuredTagName);
+            if (configuredTag is not null)
+            {
+                return string.Equals(configuredTag.CurrentValue, "True", StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
+        var primaryValue = GetImportedCylinderTagValue(primarySuffix);
+        if (!string.IsNullOrWhiteSpace(primaryValue) && !string.Equals(primaryValue, "--", StringComparison.Ordinal))
+        {
+            return string.Equals(primaryValue, "True", StringComparison.OrdinalIgnoreCase);
+        }
+
+        if (!string.IsNullOrWhiteSpace(secondarySuffix))
+        {
+            var secondaryValue = GetImportedCylinderTagValue(secondarySuffix);
+            if (!string.IsNullOrWhiteSpace(secondaryValue) && !string.Equals(secondaryValue, "--", StringComparison.Ordinal))
+            {
+                return string.Equals(secondaryValue, "True", StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(fallbackTagName))
+        {
+            return GetBoolTag(fallbackTagName);
+        }
+
+        return fallbackValue;
+    }
+
     private bool GetBoolParameter(string parameterName, bool fallback = false)
     {
         var item = Parameters.FirstOrDefault(p => p.Name.Equals(parameterName, StringComparison.OrdinalIgnoreCase));
@@ -2576,8 +3466,62 @@ public partial class MainViewModel : ObservableObject
     }
     private int GetIntTag(string tagName, int fallback = 0) => int.TryParse(GetTagValue(tagName), out var value) ? value : fallback;
     private double GetDoubleTag(string tagName, double fallback = 0) => double.TryParse(GetTagValue(tagName), out var value) ? value : fallback;
-    private string GetTagValue(string tagName) => Tags.FirstOrDefault(t => t.Name.Equals(tagName, StringComparison.OrdinalIgnoreCase))?.CurrentValue ?? "--";
-    private void SetTagValue(string tagName, string value) { var tag = Tags.FirstOrDefault(t => t.Name.Equals(tagName, StringComparison.OrdinalIgnoreCase)); if (tag is not null) tag.CurrentValue = value; }
+    private string GetTagValue(string tagName) => FindTagByNameOrNodeId(tagName)?.CurrentValue ?? "--";
+    private void SetTagValue(string tagName, string value) { var tag = FindTagByNameOrNodeId(tagName); if (tag is not null) tag.CurrentValue = value; }
+    private TagItem? FindTagByNameOrNodeId(string tagNameOrNodeId) =>
+        Tags.FirstOrDefault(t => t.Name.Equals(tagNameOrNodeId, StringComparison.OrdinalIgnoreCase))
+        ?? Tags.FirstOrDefault(t => t.NodeId.Equals(tagNameOrNodeId, StringComparison.OrdinalIgnoreCase));
+    private string GetImportedCylinderTagValue(string suffix) => FindImportedCylinderTag(suffix)?.CurrentValue ?? "--";
+    private TagItem? FindImportedCylinderTag(string suffix)
+    {
+        var prefix = ResolveImportedCylinderPrefix();
+        if (string.IsNullOrWhiteSpace(prefix))
+        {
+            return null;
+        }
+
+        var fullNodeId = prefix + suffix;
+        return Tags.FirstOrDefault(tag => tag.NodeId.Equals(fullNodeId, StringComparison.OrdinalIgnoreCase))
+            ?? Tags.FirstOrDefault(tag => tag.Name.Equals(fullNodeId.Replace("Application.", string.Empty, StringComparison.OrdinalIgnoreCase), StringComparison.OrdinalIgnoreCase));
+    }
+
+    private string ResolveImportedCylinderPrefix()
+    {
+        var inHomeTag = Tags.FirstOrDefault(tag =>
+            tag.NodeId.Contains(".CylCtrl[", StringComparison.OrdinalIgnoreCase)
+            && tag.NodeId.EndsWith(".Status.InHome", StringComparison.OrdinalIgnoreCase));
+
+        if (inHomeTag is not null)
+        {
+            return inHomeTag.NodeId[..^".Status.InHome".Length];
+        }
+
+        var devStatusTag = Tags.FirstOrDefault(tag =>
+            tag.NodeId.Contains(".CylCtrl[", StringComparison.OrdinalIgnoreCase)
+            && tag.NodeId.EndsWith(".DevStatus.Sensor_Home", StringComparison.OrdinalIgnoreCase));
+
+        return devStatusTag is null ? string.Empty : devStatusTag.NodeId[..^".DevStatus.Sensor_Home".Length];
+    }
+
+    private string GetImportedCylinderDisplayName()
+    {
+        var prefix = ResolveImportedCylinderPrefix();
+        if (string.IsNullOrWhiteSpace(prefix))
+        {
+            return "澶圭揣姘旂几 CY01";
+        }
+
+        var commentTag = FindImportedCylinderTag(".Parm.Comment");
+        if (commentTag is not null && !string.IsNullOrWhiteSpace(commentTag.CurrentValue) && !string.Equals(commentTag.CurrentValue, "--", StringComparison.Ordinal))
+        {
+            return commentTag.CurrentValue;
+        }
+
+        var indexMarker = prefix.LastIndexOf('[');
+        var normalized = prefix.Replace("Application.", string.Empty, StringComparison.OrdinalIgnoreCase);
+        return indexMarker >= 0 ? $"姘旂几 {normalized[indexMarker..]}" : normalized;
+    }
+
     private void AddTag(TagItem tag) => Tags.Add(tag);
     private double CalculateAvailability() { var run = GetDoubleTag("Machine_RunTimeMin", 420); var stop = GetDoubleTag("Machine_StopTimeMin", 34); var total = run + stop; return total <= 0 ? 0 : Math.Round(run / total * 100, 1); }
     private double CalculatePerformance() { var ideal = GetDoubleTag("Ideal_Cycle_Time", 2.8); var actual = GetDoubleTag("Cycle_Time", 3.2); if (ideal <= 0 || actual <= 0) return 0; return Math.Round(Math.Min(100, ideal / actual * 100), 1); }
@@ -2602,7 +3546,7 @@ public partial class MainViewModel : ObservableObject
     private string BuildFlowRankingSummary()
     {
         var source = FlowSteps.AsEnumerable();
-        if (!source.Any()) return "暂无流程排行数据";
+        if (!source.Any()) return "鏆傛棤娴佺▼鎺掕鏁版嵁";
 
         var topAvgCycle = source.GroupBy(x => x.FlowName)
             .Select(g => new { Name = g.Key, Avg = g.Average(x => x.DurationSeconds) })
@@ -2617,7 +3561,47 @@ public partial class MainViewModel : ObservableObject
 
         var longestSingle = source.OrderByDescending(x => x.DurationSeconds).FirstOrDefault();
 
-        return $"平均节拍最长：{topAvgCycle?.Name ?? "--"} {topAvgCycle?.Avg:F2}s | 最多报警步序：STEP {topAlarmStep?.Step ?? 0:000} {topAlarmStep?.Count ?? 0}次 | 最长卡步：{longestSingle?.FlowName ?? "--"} STEP {longestSingle?.StepNo ?? 0:000} {longestSingle?.DurationSeconds ?? 0:F2}s";
+        return $"骞冲潎鑺傛媿鏈€闀匡細{topAvgCycle?.Name ?? "--"} {topAvgCycle?.Avg:F2}s | 鏈€澶氭姤璀︽搴忥細STEP {topAlarmStep?.Step ?? 0:000} {topAlarmStep?.Count ?? 0}娆?| 鏈€闀垮崱姝ワ細{longestSingle?.FlowName ?? "--"} STEP {longestSingle?.StepNo ?? 0:000} {longestSingle?.DurationSeconds ?? 0:F2}s";
+    }
+
+    private string ResolveCylinderCurrentStateText()
+    {
+        if (IsAutoMode && !CylinderBackwardActive)
+        {
+            return "设备手动后气缸未复原，请把气缸复原后再切换到自动模式";
+        }
+
+        if (CylinderForwardActive && CylinderBackwardActive)
+        {
+            return "动作位和初始位感应器都点亮，检查感应器状态";
+        }
+
+        if (!CylinderForwardActive && !CylinderBackwardActive)
+        {
+            return "动作位和初始位感应器都不亮，检查感应器状态";
+        }
+
+        if (!CylinderOutputActive && CylinderForwardActive && !CylinderBackwardActive)
+        {
+            return "气缸前往初始位超时，检查动作位传感器状态";
+        }
+
+        if (CylinderOutputActive && CylinderBackwardActive && !CylinderForwardActive)
+        {
+            return "气缸前往动作位超时，检查初始位传感器状态";
+        }
+
+        if (!CylinderHomeInterlockActive && !CylinderBackwardActive)
+        {
+            return "初始位互锁条件未满足，检查互锁机构状态";
+        }
+
+        if (!CylinderMoveInterlockActive && !CylinderForwardActive)
+        {
+            return "动作位互锁条件未满足，检查互锁机构状态";
+        }
+
+        return CylinderOutputActive ? "气缸正在前往动作位" : "气缸已在初始位待命";
     }
 
     private static string BuildHandlingSuggestion(string source, string level) => source switch
@@ -2748,9 +3732,390 @@ public partial class MainViewModel : ObservableObject
     private static double GetDefaultWidth(string type) => type switch { "Label" => 160, "ValueDisplay" => 200, "AlarmBanner" => 280, "Motor" => 180, "Cylinder" => 180, "Axis" => 210, "Robot" => 190, "Stopper" => 170, "PageButton" => 140, _ => 120 };
     private static double GetDefaultHeight(string type) => type switch { "AlarmBanner" => 60, "Motor" => 100, "Cylinder" => 90, "Axis" => 100, "Robot" => 100, "Stopper" => 80, _ => 40 };
     private static string GetDefaultBackground(string type) => type switch { "Button" => "#2563EB", "Indicator" => "#475569", "Label" => "#1E293B", "ValueDisplay" => "#0F766E", "AlarmBanner" => "#F59E0B", "Motor" => "#3B82F6", "Cylinder" => "#10B981", "Axis" => "#8B5CF6", "Robot" => "#EC4899", "Stopper" => "#F59E0B", "PageButton" => "#6366F1", _ => "#64748B" };
-    private static string GetDefaultText(string type) => type switch { "Button" => "按钮", "Indicator" => "指示灯", "Label" => "文本标签", "ValueDisplay" => "数值显示", "AlarmBanner" => "报警条", "Motor" => "⚙ 电机模块", "Cylinder" => "▭ 气缸模块", "Axis" => "⇆ 轴模块", "Robot" => "🤖 机械手模块", "Stopper" => "⊥ 挡停模块", "PageButton" => "页面跳转", _ => "控件" };
-    private string GetProjectRoot() { var desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory); return Path.Combine(desktop, DateTime.Now.ToString("yyyy-MM-dd"), "PlcOpcUaHmi"); }
+    private static string GetDefaultText(string type) => type switch
+    {
+        "Button" => "按钮",
+        "Indicator" => "指示灯",
+        "Label" => "文本标签",
+        "ValueDisplay" => "数值显示",
+        "AlarmBanner" => "报警条",
+        "Motor" => "电机模块",
+        "Cylinder" => "气缸模块",
+        "Axis" => "轴模块",
+        "Robot" => "机械手模块",
+        "Stopper" => "挡停模块",
+        "PageButton" => "页面跳转",
+        _ => "控件"
+    };
+
+    private void SeedAutoProgramFlow()
+    {
+        AutoProgramFlowNodes.Clear();
+        AutoProgramFlowNodes.Add(new AutoProgramFlowNode { StepNo = 10, Title = "上料检测", Action = "检测载具到位与产品存在信号", NextStep = "20", Left = 70, Top = 40, Fill = "#DBEAFE" });
+        AutoProgramFlowNodes.Add(new AutoProgramFlowNode { StepNo = 20, Title = "夹紧定位", Action = "下压夹爪并确认夹紧完成", NextStep = "30", Left = 70, Top = 170, Fill = "#DCFCE7" });
+        AutoProgramFlowNodes.Add(new AutoProgramFlowNode { StepNo = 30, Title = "机械手取放", Action = "机械手取料并放入加工位", NextStep = "40", Left = 70, Top = 300, Fill = "#FEF3C7" });
+        AutoProgramFlowNodes.Add(new AutoProgramFlowNode { StepNo = 40, Title = "装配执行", Action = "执行装配动作并监视超时", NextStep = "50", Left = 70, Top = 430, Fill = "#FCE7F3" });
+        AutoProgramFlowNodes.Add(new AutoProgramFlowNode { StepNo = 50, Title = "结果判定", Action = "判定 OK/NG 并写入结果", NextStep = "60", Left = 70, Top = 560, Fill = "#E0E7FF", IsDecision = true });
+        AutoProgramFlowNodes.Add(new AutoProgramFlowNode { StepNo = 60, Title = "下料复位", Action = "下料并将流程复位到待机", NextStep = "END", Left = 70, Top = 690, Fill = "#F1F5F9" });
+        RefreshAutoProgramSummary();
+    }
+
+    private void RebuildAutoFlowLayout()
+    {
+        var ordered = AutoProgramFlowNodes.OrderBy(x => x.StepNo).ToList();
+        for (var index = 0; index < ordered.Count; index++)
+        {
+            ordered[index].Left = ordered[index].IsDecision ? 110 : 70;
+            ordered[index].Top = 40 + index * 130;
+        }
+
+        RefreshAutoProgramSummary();
+    }
+
+    private GeneratedProgramArtifact CreateGeneratedArtifact(string outputDirectory, string fileName, string content)
+    {
+        var fullPath = Path.Combine(outputDirectory, fileName);
+        File.WriteAllText(fullPath, content, new UTF8Encoding(false));
+        return new GeneratedProgramArtifact
+        {
+            DisplayName = Path.GetFileNameWithoutExtension(fileName),
+            FileName = fileName,
+            OutputPath = fullPath,
+            Content = content
+        };
+    }
+
+    private string ReadGenerationTemplate(string templateFileName)
+    {
+        var templateDirectory = Path.Combine(GetApplicationRoot(), "Templates", SelectedIoPlcTemplate);
+        var templatePath = Path.Combine(templateDirectory, templateFileName);
+        return File.Exists(templatePath) ? File.ReadAllText(templatePath, Encoding.UTF8) : string.Empty;
+    }
+
+    private string BuildAutoTemplateProgram(string template, string controlDb, int stationNo, IReadOnlyList<AutoProgramFlowNode> nodes)
+    {
+        if (string.IsNullOrWhiteSpace(template))
+        {
+            return string.Empty;
+        }
+
+        var startStep = nodes.FirstOrDefault()?.StepNo ?? 10;
+        var stepCases = new StringBuilder();
+        foreach (var node in nodes)
+        {
+            stepCases.AppendLine($"\t{node.StepNo}:");
+            stepCases.AppendLine($"\t\tAuto[{stationNo}].Comment:=\"{node.Title} - {node.Action}\";");
+            stepCases.AppendLine($"\t\tAuto[{stationNo}].Step:={ResolveNextStepValue(node.NextStep, node.StepNo)};");
+        }
+
+        var result = template
+            .Replace("{StationNo}", stationNo.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal)
+            .Replace("{GeneratedAt}", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"), StringComparison.Ordinal)
+            .Replace("{ControlDb}", controlDb, StringComparison.Ordinal)
+            .Replace("Auto[{StationNo}].Step:=10;", $"Auto[{stationNo}].Step:={startStep};", StringComparison.Ordinal)
+            .Replace("\t10:\r\n\t\tAuto[{StationNo}].Comment:=\"缁涘绶熷銉ㄥ濮濄儵顎冮柊宥囩枂\";\r\n\t\tAuto[{StationNo}].Step:=1000;", stepCases.ToString().TrimEnd(), StringComparison.Ordinal)
+            .Replace("Auto[{StationNo}].Comment:=\"自动流程启动\";", $"Auto[{stationNo}].Comment:=\"{AutoProgramName} 启动\";", StringComparison.Ordinal);
+
+        return result;
+    }
+
+    private string BuildInitTemplateProgram(string template, string controlDb, int stationNo, IReadOnlyList<AutoProgramFlowNode> nodes)
+    {
+        if (string.IsNullOrWhiteSpace(template))
+        {
+            return string.Empty;
+        }
+
+        var summaryComment = nodes.Count == 0 ? "等待初始化条件" : $"初始化 {AutoProgramName}，共 {nodes.Count} 步";
+        var result = template
+            .Replace("{StationNo}", stationNo.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal)
+            .Replace("{GeneratedAt}", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"), StringComparison.Ordinal)
+            .Replace("{ControlDb}", controlDb, StringComparison.Ordinal)
+            .Replace("Init[{StationNo}].Comment:=\"初始化开始\";", $"Init[{stationNo}].Comment:=\"{AutoProgramName} 初始化开始\";", StringComparison.Ordinal)
+            .Replace("Init[{StationNo}].Comment:=\"初始化摘要\";", $"Init[{stationNo}].Comment:=\"{summaryComment}\";", StringComparison.Ordinal)
+            .Replace("Init[{StationNo}].Comment:=\"初始化完成\";", $"Init[{stationNo}].Comment:=\"{AutoProgramName} 初始化完成\";", StringComparison.Ordinal);
+
+        return result;
+    }
+
+    private static string ResolveNextStepValue(string? nextStep, int currentStep)
+    {
+        if (string.IsNullOrWhiteSpace(nextStep))
+        {
+            return "10";
+        }
+
+        var trimmed = nextStep.Trim();
+        if (trimmed.Equals("END", StringComparison.OrdinalIgnoreCase))
+        {
+            return "10";
+        }
+
+        return int.TryParse(trimmed, out var stepNo) ? stepNo.ToString(CultureInfo.InvariantCulture) : (currentStep + 10).ToString(CultureInfo.InvariantCulture);
+    }
+
+    private static int ResolveOperationBaseNumber(string? operationNumber)
+    {
+        if (string.IsNullOrWhiteSpace(operationNumber))
+        {
+            return 1000;
+        }
+
+        var digits = new string(operationNumber.Where(char.IsDigit).ToArray());
+        return int.TryParse(digits, out var number) ? number * 100 : 1000;
+    }
+
+    private static int ResolveStationNo(string? stationText)
+    {
+        if (string.IsNullOrWhiteSpace(stationText))
+        {
+            return 1;
+        }
+
+        var digits = new string(stationText.Where(char.IsDigit).ToArray());
+        return int.TryParse(digits, out var stationNo) && stationNo > 0 ? stationNo : 1;
+    }
+
+    private void RefreshAutoProgramSummary()
+    {
+        OnPropertyChanged(nameof(AutoProgramHeadline));
+        OnPropertyChanged(nameof(AutoProgramSummary));
+        OnPropertyChanged(nameof(HasGeneratedAutoPrograms));
+        OnPropertyChanged(nameof(SelectedGeneratedAutoProgramContent));
+    }
+
+    private void RefreshIoGenerationSummary(IoGenerationResult? result = null)
+    {
+        var inputCount = result?.InputCount ?? IoTableRows.Count(r => !string.IsNullOrWhiteSpace(r.InputAddress));
+        var outputCount = result?.OutputCount ?? IoTableRows.Count(r => !string.IsNullOrWhiteSpace(r.OutputAddress));
+        IoImportSummary = IoTableRows.Count == 0
+            ? "尚未导入 IO 表"
+            : $"已导入 {IoTableRows.Count} 行，输入 {inputCount} 点，输出 {outputCount} 点";
+        OnPropertyChanged(nameof(IoGenerationHeadline));
+        OnPropertyChanged(nameof(IoGenerationCountSummary));
+        OnPropertyChanged(nameof(HasGeneratedIoPrograms));
+        OnPropertyChanged(nameof(SelectedGeneratedIoProgramContent));
+    }
+
+    private void EnsureDefaultManualCylinderBlock()
+    {
+        ManualCylinderBlocks.Clear();
+        if (ManualCylinderBlocks.Count > 0)
+        {
+            return;
+        }
+
+        ManualCylinderBlocks.Add(CreateManualCylinderBlock(1, "夹紧气缸 CY01"));
+        RefreshManualCylinderBlockStates();
+    }
+
+    private void ManualCylinderBlocks_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.NewItems is not null)
+        {
+            foreach (var item in e.NewItems.OfType<ManualCylinderBlockItem>())
+            {
+                item.PropertyChanged += ManualCylinderBlockItem_PropertyChanged;
+            }
+        }
+
+        if (e.OldItems is not null)
+        {
+            foreach (var item in e.OldItems.OfType<ManualCylinderBlockItem>())
+            {
+                item.PropertyChanged -= ManualCylinderBlockItem_PropertyChanged;
+            }
+        }
+
+        ManualCylinderBlocksView.Refresh();
+        OnPropertyChanged(nameof(ManualCylinderBlockCards));
+    }
+
+    private void ManualCylinderBlockItem_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(ManualCylinderBlockItem.DisplayOrder))
+        {
+            ManualCylinderBlocksView.Refresh();
+        }
+
+        if (e.PropertyName == nameof(ManualCylinderBlockItem.DisplayOrder)
+            || e.PropertyName == nameof(ManualCylinderBlockItem.DisplayName)
+            || e.PropertyName == nameof(ManualCylinderBlockItem.CylinderIndex))
+        {
+            OnPropertyChanged(nameof(ManualCylinderBlockCards));
+        }
+    }
+
+    private void RebuildManualCylinderBlocksFromIo()
+    {
+        var cylinders = ExtractCylinderDefinitionsFromIo()
+            .GroupBy(item => item.CylinderIndex)
+            .Select(group => group.First())
+            .ToList();
+        ManualCylinderBlocks.Clear();
+
+        if (cylinders.Count == 0)
+        {
+            EnsureDefaultManualCylinderBlock();
+            return;
+        }
+
+        foreach (var cylinder in cylinders.OrderBy(item => item.CylinderIndex))
+        {
+            ManualCylinderBlocks.Add(cylinder);
+            EnsureCylinderTagsForBlock(cylinder);
+        }
+
+        RefreshManualCylinderBlockStates();
+    }
+
+    private IEnumerable<ManualCylinderBlockItem> ExtractCylinderDefinitionsFromIo()
+    {
+        var groups = new Dictionary<int, ManualCylinderBlockItem>();
+
+        foreach (var row in IoTableRows)
+        {
+            CollectCylinderDefinition(groups, row.InputComment);
+            CollectCylinderDefinition(groups, row.OutputComment);
+        }
+
+        return groups.Values;
+    }
+
+    private void CollectCylinderDefinition(IDictionary<int, ManualCylinderBlockItem> groups, string comment)
+    {
+        if (string.IsNullOrWhiteSpace(comment))
+        {
+            return;
+        }
+
+        var match = Regex.Match(comment, "(CY\\d{1,3})", RegexOptions.IgnoreCase);
+        if (!match.Success)
+        {
+            return;
+        }
+
+        var indexText = new string(match.Value.Where(char.IsDigit).ToArray());
+        if (!int.TryParse(indexText, out var index) || index <= 0)
+        {
+            return;
+        }
+
+        if (!groups.TryGetValue(index, out var block))
+        {
+            block = CreateManualCylinderBlock(index, ExtractCylinderDisplayName(comment));
+            groups[index] = block;
+        }
+        else if (string.IsNullOrWhiteSpace(block.DisplayName) || block.DisplayName.StartsWith("气缸 ", StringComparison.Ordinal))
+        {
+            block.DisplayName = ExtractCylinderDisplayName(comment);
+        }
+    }
+
+    private static ManualCylinderBlockItem CreateManualCylinderBlock(int index, string displayName)
+    {
+        var normalizedName = string.IsNullOrWhiteSpace(displayName) ? $"气缸 CY{index:00}" : displayName;
+        var root = $"Application.DB8050_DriveControl.CylCtrl[{index}]";
+        return new ManualCylinderBlockItem
+        {
+            CylinderIndex = index,
+            DisplayOrder = index,
+            DisplayName = normalizedName,
+            HomeCommandTagName = $"{root}.Cmd.ManuToHome",
+            WorkCommandTagName = $"{root}.Cmd.ManuToWork",
+            HomeSensorTagName = $"{root}.Status.InHome",
+            WorkSensorTagName = $"{root}.Status.InWork",
+            HomeInterlockTagName = $"{root}.Parm.IC_Home",
+            WorkInterlockTagName = $"{root}.Parm.IC_Work"
+        };
+    }
+
+    private static string ExtractCylinderDisplayName(string comment)
+    {
+        var text = (comment ?? string.Empty).Trim();
+        var underscoreIndex = text.LastIndexOf('_');
+        return underscoreIndex > 0 ? text[..underscoreIndex] : text;
+    }
+
+    private void EnsureCylinderTagsForBlock(ManualCylinderBlockItem block)
+    {
+        EnsurePlaceholderTag(block.HomeCommandTagName, true);
+        EnsurePlaceholderTag(block.WorkCommandTagName, true);
+        EnsurePlaceholderTag(block.HomeSensorTagName, false);
+        EnsurePlaceholderTag(block.WorkSensorTagName, false);
+        EnsurePlaceholderTag(block.HomeInterlockTagName, false);
+        EnsurePlaceholderTag(block.WorkInterlockTagName, false);
+    }
+
+    private void EnsurePlaceholderTag(string nodeId, bool writable)
+    {
+        if (FindTagByNameOrNodeId(nodeId) is not null)
+        {
+            return;
+        }
+
+        Tags.Add(new TagItem
+        {
+            Name = nodeId.Replace("Application.", string.Empty, StringComparison.OrdinalIgnoreCase),
+            NodeId = nodeId,
+            DataType = "Boolean",
+            Category = "Cylinder",
+            Group = "Imported",
+            Direction = writable ? "Output" : "Input",
+            CurrentValue = "False",
+            Description = "由 IO 气缸块自动补齐的固定变量路径",
+            IsWritable = writable
+        });
+    }
+
+    private void RefreshManualCylinderBlockStates()
+    {
+        foreach (var block in ManualCylinderBlocks)
+        {
+            block.HomeActive = GetBoolTag(block.HomeSensorTagName);
+            block.WorkActive = GetBoolTag(block.WorkSensorTagName);
+            block.HomeInterlockActive = GetBoolTag(block.HomeInterlockTagName) || !FindTagExists(block.HomeInterlockTagName);
+            block.WorkInterlockActive = GetBoolTag(block.WorkInterlockTagName) || !FindTagExists(block.WorkInterlockTagName);
+            block.OutputActive = GetBoolTag(block.WorkCommandTagName);
+            block.StatusText = block.WorkActive ? "前到位" : block.HomeActive ? "后到位" : "切换中";
+            block.CurrentStateText = block.WorkActive && block.HomeActive
+                ? "动作位和初始位感应器都点亮，检查感应器状态"
+                : !block.WorkActive && !block.HomeActive
+                    ? "动作位和初始位感应器都不亮，检查感应器状态"
+                    : block.OutputActive ? "气缸正在前往动作位" : "气缸已在初始位待命";
+            block.InterlockHint = !block.HomeInterlockActive || !block.WorkInterlockActive
+                ? "互锁条件未满足"
+                : "互锁正常";
+        }
+    }
+
+    private bool FindTagExists(string tagNameOrNodeId) => FindTagByNameOrNodeId(tagNameOrNodeId) is not null;
+
+    private string GetApplicationRoot()
+    {
+        var currentDirectory = Environment.CurrentDirectory;
+        if (File.Exists(Path.Combine(currentDirectory, "PlcOpcUaHmi.csproj")))
+        {
+            return currentDirectory;
+        }
+
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "PlcOpcUaHmi.csproj")))
+            {
+                return directory.FullName;
+            }
+
+            directory = directory.Parent;
+        }
+
+        return AppContext.BaseDirectory;
+    }
+
+    private string GetProjectRoot() => GetApplicationRoot();
     private double Snap(double value) => EnableGridSnap ? Math.Round(value / GridSize) * GridSize : value;
     private void DesignerElements_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e) => SyncCanvasToPage();
     private void DesignerPages_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e) { if (DesignerPages.Count > 0 && SelectedDesignerPage is null) SelectedDesignerPage = DesignerPages[0]; }
 }
+

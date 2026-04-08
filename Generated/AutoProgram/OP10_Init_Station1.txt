@@ -1,0 +1,31 @@
+// Init template
+// Station: 1
+// Generated: 2026-04-08 13:38:49
+
+IF DB1000_Control_Fault.EstopTotal OR DB1000_Control_Fault.StopTotal OR DB1000_Control_Control.Mode.Status.ManualMode OR DB1000_Control_Control.Mode.Out.Stop THEN
+	Init[1].Step:=0;
+	Init[1].Running:=FALSE;
+END_IF
+
+IF DB1000_Control_Control.Mode.Out.HomeStart AND NOT Init[1].Running THEN
+	Init[1].Running:=TRUE;
+	Init[1].Complete:=FALSE;
+	Init[1].Step:=5;
+	Init[1].Comment:="初始化开始";
+END_IF
+
+IF Init[1].Running THEN
+	CASE Init[1].Step OF
+		5:
+			Init[1].Comment:="等待初始化条件";
+			Init[1].Step:=1000;
+		1000:
+			Init[1].Comment:="初始化完成";
+			Init[1].Running:=FALSE;
+			Init[1].Complete:=TRUE;
+			DB1000_Control_Control.Mode.Status.HomeOK:=TRUE;
+			Init[1].Step:=0;
+	ELSE
+		;
+	END_CASE
+END_IF

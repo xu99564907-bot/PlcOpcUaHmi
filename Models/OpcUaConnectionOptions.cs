@@ -2,6 +2,7 @@ namespace PlcOpcUaHmi.Models;
 
 public class OpcUaConnectionOptions
 {
+    public string Protocol { get; set; } = "OPC UA";
     public string ServerIp { get; set; } = "127.0.0.1";
     public int Port { get; set; } = 4840;
     public string EndpointPath { get; set; } = string.Empty;

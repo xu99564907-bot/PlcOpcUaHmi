@@ -1,0 +1,133 @@
+<Window x:Class="PlcOpcUaHmi.CylinderSettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="气缸参数设定"
+        Height="520"
+        Width="680"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Background="#F8FAFC">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel>
+            <TextBlock Text="气缸参数设定" FontSize="24" FontWeight="Bold" Foreground="#0F172A"/>
+            <TextBlock Text="配置屏蔽按钮、动作延时和报警时间，并查看最近动作信息。" Foreground="#64748B" Margin="0,8,0,0"/>
+        </StackPanel>
+
+        <Border Grid.Row="1" Background="#FFFFFF" BorderBrush="#D7DFEA" BorderThickness="1" CornerRadius="10" Padding="16" Margin="0,16,0,16">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Row="0" Grid.ColumnSpan="2" Background="#F8FAFC" BorderBrush="#D7DFEA" BorderThickness="1" CornerRadius="8" Padding="14" Margin="0,0,0,12">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="160"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                            <TextBlock Text="编号" Foreground="#475569"/>
+                            <TextBox Text="{Binding SelectedCylinderSettingsBlock.DisplayOrder, UpdateSourceTrigger=PropertyChanged}" Margin="0,6,0,0"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Text="气缸名称" Foreground="#475569"/>
+                            <TextBox Text="{Binding SelectedCylinderSettingsBlock.DisplayName, UpdateSourceTrigger=PropertyChanged}" Margin="0,6,0,0"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+                <Border Grid.Row="1" Grid.ColumnSpan="2" Background="#F8FAFC" BorderBrush="#D7DFEA" BorderThickness="1" CornerRadius="8" Padding="14" Margin="0,0,0,12">
+                    <UniformGrid Columns="2">
+                        <Button Content="{Binding CylinderHomeMaskButtonText}" Command="{Binding ToggleCylinderHomeMaskCommand}" Foreground="#0F172A" Padding="10,8" Margin="0,0,8,0">
+                            <Button.Style>
+                                <Style TargetType="Button">
+                                    <Setter Property="Background" Value="#E6F4EA"/>
+                                    <Setter Property="BorderBrush" Value="#A7D7B5"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding CylinderHomeMaskEnabled}" Value="True">
+                                            <Setter Property="Background" Value="#FFE7A3"/>
+                                            <Setter Property="BorderBrush" Value="#D6AE3F"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                        <Button Content="{Binding CylinderWorkMaskButtonText}" Command="{Binding ToggleCylinderWorkMaskCommand}" Foreground="#0F172A" Padding="10,8" Margin="8,0,0,0">
+                            <Button.Style>
+                                <Style TargetType="Button">
+                                    <Setter Property="Background" Value="#E6F4EA"/>
+                                    <Setter Property="BorderBrush" Value="#A7D7B5"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding CylinderWorkMaskEnabled}" Value="True">
+                                            <Setter Property="Background" Value="#FFE7A3"/>
+                                            <Setter Property="BorderBrush" Value="#D6AE3F"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                    </UniformGrid>
+                </Border>
+
+                <StackPanel Grid.Row="2" Grid.Column="0" Margin="0,0,12,12">
+                    <TextBlock Text="报警时间设定" Foreground="#475569"/>
+                    <TextBox Text="{Binding CylinderAlarmTimeSetting, UpdateSourceTrigger=PropertyChanged}" Margin="0,6,0,0"/>
+                </StackPanel>
+                <StackPanel Grid.Row="2" Grid.Column="1" Margin="12,0,0,12">
+                    <TextBlock Text="原点延时设定" Foreground="#475569"/>
+                    <TextBox Text="{Binding CylinderHomeDelaySetting, UpdateSourceTrigger=PropertyChanged}" Margin="0,6,0,0"/>
+                </StackPanel>
+
+                <StackPanel Grid.Row="3" Grid.Column="0" Margin="0,0,12,12">
+                    <TextBlock Text="动点延时设定" Foreground="#475569"/>
+                    <TextBox Text="{Binding CylinderWorkDelaySetting, UpdateSourceTrigger=PropertyChanged}" Margin="0,6,0,0"/>
+                </StackPanel>
+                <Border Grid.Row="3" Grid.Column="1" Background="#F8FAFC" BorderBrush="#D7DFEA" BorderThickness="1" CornerRadius="8" Padding="12" Margin="12,0,0,12">
+                    <StackPanel>
+                        <TextBlock Text="当前状态" FontWeight="SemiBold" Foreground="#0F172A"/>
+                        <TextBlock Text="{Binding CylinderCurrentStateText}" TextWrapping="Wrap" Foreground="#1D4ED8" Margin="0,6,0,0"/>
+                    </StackPanel>
+                </Border>
+
+                <UniformGrid Grid.Row="4" Grid.ColumnSpan="2" Columns="3">
+                    <Border Background="#F8FAFC" BorderBrush="#D7DFEA" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,8,0">
+                        <StackPanel>
+                            <TextBlock Text="当前动作时间 (S)" Foreground="#64748B"/>
+                            <TextBlock Text="{Binding CylinderCurrentActionTimeDisplay}" FontSize="20" FontWeight="Bold" Foreground="#0F172A" Margin="0,8,0,0"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Background="#F8FAFC" BorderBrush="#D7DFEA" BorderThickness="1" CornerRadius="8" Padding="12" Margin="8,0">
+                        <StackPanel>
+                            <TextBlock Text="上次动作时间 (S)" Foreground="#64748B"/>
+                            <TextBlock Text="{Binding CylinderLastActionTimeDisplay}" FontSize="20" FontWeight="Bold" Foreground="#0F172A" Margin="0,8,0,0"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Background="#F8FAFC" BorderBrush="#D7DFEA" BorderThickness="1" CornerRadius="8" Padding="12" Margin="8,0,0,0">
+                        <StackPanel>
+                            <TextBlock Text="动作次数" Foreground="#64748B"/>
+                            <TextBlock Text="{Binding CylinderActionCount}" FontSize="20" FontWeight="Bold" Foreground="#0F172A" Margin="0,8,0,0"/>
+                        </StackPanel>
+                    </Border>
+                </UniformGrid>
+            </Grid>
+        </Border>
+
+        <DockPanel Grid.Row="2">
+            <TextBlock Text="参数修改即时生效，用于当前会话的手动调试。" Foreground="#64748B" VerticalAlignment="Center"/>
+            <Button DockPanel.Dock="Right" Content="关闭" Click="CloseButton_Click" Background="#0F766E" Foreground="White" BorderBrush="#0F766E" Padding="18,8"/>
+        </DockPanel>
+    </Grid>
+</Window>

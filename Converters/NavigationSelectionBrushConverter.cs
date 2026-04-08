@@ -8,9 +8,9 @@ namespace PlcOpcUaHmi.Converters;
 public sealed class NavigationSelectionBrushConverter : IMultiValueConverter
 {
     private static readonly Brush ActiveBackground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2563EB"));
-    private static readonly Brush InactiveBackground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1F2937"));
+    private static readonly Brush InactiveBackground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FFFFFF"));
     private static readonly Brush ActiveForeground = Brushes.White;
-    private static readonly Brush InactiveForeground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#CBD5E1"));
+    private static readonly Brush InactiveForeground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569"));
 
     public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
     {

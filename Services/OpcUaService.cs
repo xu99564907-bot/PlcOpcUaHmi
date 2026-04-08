@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -25,34 +26,30 @@ public class OpcUaService
     public async Task ConnectAsync(OpcUaConnectionOptions options)
     {
         _configuration = await BuildConfigurationAsync();
-        var selectedEndpoint = await CoreClientUtils.SelectEndpointAsync(
-            _configuration,
-            options.GetEndpointUrl(),
-            false,
-            15000,
-            null!,
-            CancellationToken.None);
-        var endpoint = new ConfiguredEndpoint(null, selectedEndpoint, EndpointConfiguration.Create(_configuration));
+        await DisconnectAsync();
 
-        IUserIdentity userIdentity = options.UseAnonymous
-            ? new UserIdentity(new AnonymousIdentityToken())
-            : new UserIdentity(new UserNameIdentityToken
+        var endpointUrls = BuildCandidateEndpointUrls(options);
+        Exception? lastException = null;
+
+        foreach (var endpointUrl in endpointUrls)
+        {
+            foreach (var useSecurity in new[] { false, true })
             {
-                UserName = options.Username,
-                DecryptedPassword = Encoding.UTF8.GetBytes(options.Password)
-            });
+                try
+                {
+                    _session = await CreateSessionAsync(_configuration, endpointUrl, useSecurity, options);
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    lastException = ex;
+                }
+            }
+        }
 
-        var sessionFactory = new DefaultSessionFactory(null!);
-        _session = (Session)await sessionFactory.CreateAsync(
-            _configuration,
-            endpoint,
-            false,
-            false,
-            "PlcOpcUaHmi",
-            60000,
-            userIdentity,
-            null,
-            CancellationToken.None);
+        throw new InvalidOperationException(
+            $"无法连接到 OPC UA 服务器：{options.GetEndpointUrl()}。请检查 Endpoint、匿名权限或安全策略设置。{Environment.NewLine}{lastException?.Message}",
+            lastException);
     }
 
     public async Task DisconnectAsync()
@@ -242,6 +239,18 @@ public class OpcUaService
 
     private static async Task<ApplicationConfiguration> BuildConfigurationAsync()
     {
+        var appRoot = ResolveApplicationRoot();
+        var pkiRoot = Path.Combine(appRoot, "config", "pki");
+        var ownStore = Path.Combine(pkiRoot, "own");
+        var trustedStore = Path.Combine(pkiRoot, "trusted");
+        var issuerStore = Path.Combine(pkiRoot, "issuer");
+        var rejectedStore = Path.Combine(pkiRoot, "rejected");
+
+        Directory.CreateDirectory(ownStore);
+        Directory.CreateDirectory(trustedStore);
+        Directory.CreateDirectory(issuerStore);
+        Directory.CreateDirectory(rejectedStore);
+
         var configuration = new ApplicationConfiguration
         {
             ApplicationName = "PlcOpcUaHmi",
@@ -249,7 +258,27 @@ public class OpcUaService
             ApplicationType = ApplicationType.Client,
             SecurityConfiguration = new SecurityConfiguration
             {
-                ApplicationCertificate = new CertificateIdentifier(),
+                ApplicationCertificate = new CertificateIdentifier
+                {
+                    StoreType = CertificateStoreType.Directory,
+                    StorePath = ownStore,
+                    SubjectName = "CN=PlcOpcUaHmi, O=OpenAI, C=CN"
+                },
+                TrustedPeerCertificates = new CertificateTrustList
+                {
+                    StoreType = CertificateStoreType.Directory,
+                    StorePath = trustedStore
+                },
+                TrustedIssuerCertificates = new CertificateTrustList
+                {
+                    StoreType = CertificateStoreType.Directory,
+                    StorePath = issuerStore
+                },
+                RejectedCertificateStore = new CertificateTrustList
+                {
+                    StoreType = CertificateStoreType.Directory,
+                    StorePath = rejectedStore
+                },
                 AutoAcceptUntrustedCertificates = true,
                 RejectSHA1SignedCertificates = false,
                 MinimumCertificateKeySize = 1024
@@ -263,5 +292,85 @@ public class OpcUaService
         await configuration.ValidateAsync(ApplicationType.Client);
         configuration.CertificateValidator.CertificateValidation += (_, e) => { e.Accept = true; };
         return configuration;
+    }
+
+    private static string ResolveApplicationRoot()
+    {
+        var currentDirectory = Environment.CurrentDirectory;
+        if (File.Exists(Path.Combine(currentDirectory, "PlcOpcUaHmi.csproj")))
+        {
+            return currentDirectory;
+        }
+
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "PlcOpcUaHmi.csproj")))
+            {
+                return directory.FullName;
+            }
+
+            directory = directory.Parent;
+        }
+
+        return AppContext.BaseDirectory;
+    }
+
+    private static async Task<Session> CreateSessionAsync(
+        ApplicationConfiguration configuration,
+        string endpointUrl,
+        bool useSecurity,
+        OpcUaConnectionOptions options)
+    {
+        var selectedEndpoint = await CoreClientUtils.SelectEndpointAsync(
+            configuration,
+            endpointUrl,
+            useSecurity,
+            15000,
+            null!,
+            CancellationToken.None);
+
+        var endpoint = new ConfiguredEndpoint(null, selectedEndpoint, EndpointConfiguration.Create(configuration));
+        IUserIdentity userIdentity = options.UseAnonymous
+            ? new UserIdentity(new AnonymousIdentityToken())
+            : new UserIdentity(options.Username, Encoding.UTF8.GetBytes(options.Password));
+
+        var sessionFactory = new DefaultSessionFactory(null!);
+        return (Session)await sessionFactory.CreateAsync(
+            configuration,
+            endpoint,
+            false,
+            false,
+            "PlcOpcUaHmi",
+            60000,
+            userIdentity,
+            null,
+            CancellationToken.None);
+    }
+
+    private static IReadOnlyList<string> BuildCandidateEndpointUrls(OpcUaConnectionOptions options)
+    {
+        var urls = new List<string>();
+        var baseUrl = options.GetEndpointUrl();
+        urls.Add(baseUrl);
+
+        if (string.IsNullOrWhiteSpace(options.EndpointPath))
+        {
+            var trailingSlashUrl = baseUrl.EndsWith("/", StringComparison.Ordinal) ? baseUrl : baseUrl + "/";
+            if (!urls.Contains(trailingSlashUrl, StringComparer.OrdinalIgnoreCase))
+            {
+                urls.Add(trailingSlashUrl);
+            }
+
+            var discoveryUrl = baseUrl.EndsWith("/", StringComparison.OrdinalIgnoreCase)
+                ? baseUrl + "discovery"
+                : baseUrl + "/discovery";
+            if (!urls.Contains(discoveryUrl, StringComparer.OrdinalIgnoreCase))
+            {
+                urls.Add(discoveryUrl);
+            }
+        }
+
+        return urls;
     }
 }

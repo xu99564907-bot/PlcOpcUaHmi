@@ -1,0 +1,31 @@
+// Init template
+// Station: {StationNo}
+// Generated: {GeneratedAt}
+
+IF {ControlDb}_Fault.EstopTotal OR {ControlDb}_Fault.StopTotal OR {ControlDb}_Control.Mode.Status.ManualMode OR {ControlDb}_Control.Mode.Out.Stop THEN
+	Init[{StationNo}].Step:=0;
+	Init[{StationNo}].Running:=FALSE;
+END_IF
+
+IF {ControlDb}_Control.Mode.Out.HomeStart AND NOT Init[{StationNo}].Running THEN
+	Init[{StationNo}].Running:=TRUE;
+	Init[{StationNo}].Complete:=FALSE;
+	Init[{StationNo}].Step:=5;
+	Init[{StationNo}].Comment:="初始化开始";
+END_IF
+
+IF Init[{StationNo}].Running THEN
+	CASE Init[{StationNo}].Step OF
+		5:
+			Init[{StationNo}].Comment:="等待初始化条件";
+			Init[{StationNo}].Step:=1000;
+		1000:
+			Init[{StationNo}].Comment:="初始化完成";
+			Init[{StationNo}].Running:=FALSE;
+			Init[{StationNo}].Complete:=TRUE;
+			{ControlDb}_Control.Mode.Status.HomeOK:=TRUE;
+			Init[{StationNo}].Step:=0;
+	ELSE
+		;
+	END_CASE
+END_IF

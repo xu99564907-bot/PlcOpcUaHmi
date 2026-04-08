@@ -1,0 +1,37 @@
+// AutoRun template
+// Station: {StationNo}
+// Generated: {GeneratedAt}
+
+// 自动运行标准骨架
+IF NOT {ControlDb}_Control.Mode.Status.HomeOK THEN
+	Auto[{StationNo}].Step:=0;
+	Auto[{StationNo}].Running:=FALSE;
+END_IF
+
+IF Auto[{StationNo}].Running AND CPU_Clock.Clock_100ms_R THEN
+	Auto[{StationNo}].CycleTime:=Auto[{StationNo}].CycleTime+1;
+END_IF
+
+Start[{StationNo}]:=FALSE;
+Auto[{StationNo}].NoPausedRunning:=FALSE;
+
+IF {ControlDb}_Control.Mode.Status.AutoRunning AND {ControlDb}_Control.Mode.Status.HomeOK AND Init[{StationNo}].Complete AND NOT Auto[{StationNo}].Running THEN
+	IF Start[{StationNo}] THEN
+		Auto[{StationNo}].Running:=TRUE;
+		Auto[{StationNo}].Step:=10;
+		Auto[{StationNo}].CycleTime:=0;
+		Auto[{StationNo}].Comment:="自动运行启动";
+	END_IF
+END_IF
+
+CASE Auto[{StationNo}].Step OF
+	10:
+		Auto[{StationNo}].Comment:="等待工艺步骤配置";
+		Auto[{StationNo}].Step:=1000;
+	1000:
+		Auto[{StationNo}].Comment:="自动运行结束";
+		Auto[{StationNo}].Running:=FALSE;
+		Auto[{StationNo}].Step:=0;
+ELSE
+	;
+END_CASE

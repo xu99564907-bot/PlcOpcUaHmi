@@ -1,0 +1,16 @@
+FB_Cylinder_instance[{Index}](
+	iEnable:={Enable},
+	iName:={Name},
+	iMode:= {ControlDb}_Control.Mode,
+	iEstop:= {ControlDb}_Control.Machine.EmgSafetyRelay,
+	iSafeDoor:= {ControlDb}_Control.Machine.EmgSafetyRelay,
+	iLightCurtain:= {ControlDb}_Control.Machine.LightCurtainRelay,
+	iClock_100ms:= CPU_Clock.Clock_100ms_R,
+	iSensor_Work:= {Sensor_Work},
+	iSensor_Home:= {Sensor_Home},
+	iIC_Home:= {IC_Home},
+	iIC_Work:= {IC_Work},
+	iValveModel:= {Model},
+	ioCylinder:= {DriveDb}_DriveControl.CylCtrl[{Index}],
+	oValve_Work=> {Valve_Work},
+	oValve_Home=> {Valve_Home});

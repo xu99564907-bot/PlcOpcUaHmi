@@ -1,0 +1,37 @@
+// AutoRun template
+// Station: 1
+// Generated: 2026-04-08 13:38:49
+
+// 自动运行标准骨架
+IF NOT DB1000_Control_Control.Mode.Status.HomeOK THEN
+	Auto[1].Step:=0;
+	Auto[1].Running:=FALSE;
+END_IF
+
+IF Auto[1].Running AND CPU_Clock.Clock_100ms_R THEN
+	Auto[1].CycleTime:=Auto[1].CycleTime+1;
+END_IF
+
+Start[1]:=FALSE;
+Auto[1].NoPausedRunning:=FALSE;
+
+IF DB1000_Control_Control.Mode.Status.AutoRunning AND DB1000_Control_Control.Mode.Status.HomeOK AND Init[1].Complete AND NOT Auto[1].Running THEN
+	IF Start[1] THEN
+		Auto[1].Running:=TRUE;
+		Auto[1].Step:=10;
+		Auto[1].CycleTime:=0;
+		Auto[1].Comment:="自动运行启动";
+	END_IF
+END_IF
+
+CASE Auto[1].Step OF
+	10:
+		Auto[1].Comment:="等待工艺步骤配置";
+		Auto[1].Step:=1000;
+	1000:
+		Auto[1].Comment:="自动运行结束";
+		Auto[1].Running:=FALSE;
+		Auto[1].Step:=0;
+ELSE
+	;
+END_CASE

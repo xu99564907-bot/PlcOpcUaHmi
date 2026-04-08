@@ -1,0 +1,13 @@
+FB_Rotdisk_V1_Instance[{Index}](
+	iName:={Name},
+	iEstop:= {ControlDb}_Control.Machine.EmgSafetyRelay,
+	iSafeDoor:= {ControlDb}_Control.Machine.EmgSafetyRelay,
+	iLightCurtain:= {ControlDb}_Control.Machine.LightCurtainRelay,
+	iSensor:= {Sensor},
+	iAuto:= {ControlDb}_Control.Mode.Status.AutoMode,
+	iReset:= {ControlDb}_Control.Mode.Out.ErrorReset,
+	iIC:= {IC},
+	iClock_100ms:= CPU_Clock.Clock_100ms_R,
+	iTimeDelay:= {DelayTime},
+	iORotdisk:= {DriveDb}_DriveControl.Rotdisk[{Index}],
+	oMotor=> {MotorOut});
