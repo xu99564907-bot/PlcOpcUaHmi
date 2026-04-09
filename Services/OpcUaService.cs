@@ -18,6 +18,8 @@ public class OpcUaService
     private ApplicationConfiguration? _configuration;
     private Subscription? _subscription;
     private readonly Dictionary<string, MonitoredItem> _monitoredItems = new();
+    private readonly Dictionary<string, NodeId> _resolvedNodeIds = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _unresolvedNodeIds = new(StringComparer.OrdinalIgnoreCase);
 
     public bool IsConnected => _session?.Connected == true;
     public string ConnectionStatus => IsConnected ? "已连接" : "未连接";
@@ -27,6 +29,8 @@ public class OpcUaService
     {
         _configuration = await BuildConfigurationAsync();
         await DisconnectAsync();
+        _resolvedNodeIds.Clear();
+        _unresolvedNodeIds.Clear();
 
         var endpointUrls = BuildCandidateEndpointUrls(options);
         Exception? lastException = null;
@@ -55,6 +59,8 @@ public class OpcUaService
     public async Task DisconnectAsync()
     {
         await UnsubscribeAllAsync();
+        _resolvedNodeIds.Clear();
+        _unresolvedNodeIds.Clear();
         if (_session is null)
         {
             return;
@@ -77,7 +83,7 @@ public class OpcUaService
         {
             try
             {
-                var value = await _session.ReadValueAsync(NodeId.Parse(tag.NodeId));
+                var value = await _session.ReadValueAsync(await ResolveNodeIdAsync(tag.NodeId));
                 result[tag.Name] = value.Value?.ToString() ?? string.Empty;
             }
             catch (Exception ex)
@@ -96,7 +102,7 @@ public class OpcUaService
             throw new InvalidOperationException("OPC UA 未连接。");
         }
 
-        var dataValue = await _session.ReadValueAsync(NodeId.Parse(nodeId));
+        var dataValue = await _session.ReadValueAsync(await ResolveNodeIdAsync(nodeId));
         var dataType = dataValue.WrappedValue.TypeInfo?.BuiltInType.ToString() ?? dataValue.Value?.GetType().Name ?? "--";
         var timestamp = dataValue.SourceTimestamp == DateTime.MinValue
             ? "--"
@@ -162,7 +168,7 @@ public class OpcUaService
 
         var writeValue = new WriteValue
         {
-            NodeId = NodeId.Parse(tag.NodeId),
+            NodeId = await ResolveNodeIdAsync(tag.NodeId),
             AttributeId = Attributes.Value,
             Value = new DataValue(new Variant(value))
         };
@@ -193,26 +199,35 @@ public class OpcUaService
 
         foreach (var tag in tags.Where(t => !string.IsNullOrWhiteSpace(t.NodeId)))
         {
-            var monitoredItem = new MonitoredItem(_subscription.DefaultItem)
+            try
             {
-                DisplayName = tag.Name,
-                StartNodeId = NodeId.Parse(tag.NodeId),
-                AttributeId = Attributes.Value,
-                SamplingInterval = publishingInterval,
-                QueueSize = 1,
-                DiscardOldest = true
-            };
+                var parsedNodeId = await ResolveNodeIdAsync(tag.NodeId);
 
-            monitoredItem.Notification += (_, _) =>
-            {
-                foreach (var value in monitoredItem.DequeueValues())
+                var monitoredItem = new MonitoredItem(_subscription.DefaultItem)
                 {
-                    TagValueChanged?.Invoke(tag.Name, value.Value?.ToString() ?? string.Empty);
-                }
-            };
+                    DisplayName = tag.NodeId,
+                    StartNodeId = parsedNodeId,
+                    AttributeId = Attributes.Value,
+                    SamplingInterval = publishingInterval,
+                    QueueSize = 1,
+                    DiscardOldest = true
+                };
 
-            _subscription.AddItem(monitoredItem);
-            _monitoredItems[tag.Name] = monitoredItem;
+                monitoredItem.Notification += (_, _) =>
+                {
+                    foreach (var value in monitoredItem.DequeueValues())
+                    {
+                        TagValueChanged?.Invoke(tag.NodeId, value.Value?.ToString() ?? string.Empty);
+                    }
+                };
+
+                _subscription.AddItem(monitoredItem);
+                _monitoredItems[tag.NodeId] = monitoredItem;
+            }
+            catch
+            {
+                continue;
+            }
         }
 
         await _subscription.ApplyChangesAsync(CancellationToken.None);
@@ -235,6 +250,101 @@ public class OpcUaService
 
         _monitoredItems.Clear();
         _subscription = null;
+    }
+
+    private async Task<NodeId> ResolveNodeIdAsync(string nodeIdText)
+    {
+        if (string.IsNullOrWhiteSpace(nodeIdText))
+        {
+            throw new InvalidOperationException("NodeId 为空。");
+        }
+
+        if (_resolvedNodeIds.TryGetValue(nodeIdText, out var cached))
+        {
+            return cached;
+        }
+
+        if (_unresolvedNodeIds.Contains(nodeIdText))
+        {
+            throw new InvalidOperationException($"未能解析 OPC UA NodeId：{nodeIdText}");
+        }
+
+        try
+        {
+            var parsed = NodeId.Parse(nodeIdText);
+            _resolvedNodeIds[nodeIdText] = parsed;
+            return parsed;
+        }
+        catch
+        {
+            // Continue to symbol path candidates.
+        }
+
+        if (_session is null || !_session.Connected)
+        {
+            throw new InvalidOperationException($"未能解析 OPC UA NodeId：{nodeIdText}");
+        }
+
+        Exception? lastException = null;
+        foreach (var candidateText in BuildCandidateNodeIdTexts(nodeIdText))
+        {
+            try
+            {
+                var candidateNodeId = NodeId.Parse(candidateText);
+                await _session.ReadValueAsync(candidateNodeId);
+                _resolvedNodeIds[nodeIdText] = candidateNodeId;
+                return candidateNodeId;
+            }
+            catch (Exception ex)
+            {
+                lastException = ex;
+            }
+        }
+
+        _unresolvedNodeIds.Add(nodeIdText);
+        throw new InvalidOperationException($"未能解析 OPC UA NodeId：{nodeIdText}", lastException);
+    }
+
+    private IEnumerable<string> BuildCandidateNodeIdTexts(string rawText)
+    {
+        var normalized = rawText.Trim();
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            yield break;
+        }
+
+        var namespaceIndexes = Enumerable.Range(2, Math.Max(0, (_session?.NamespaceUris.Count ?? 2) - 2))
+            .Reverse()
+            .Concat(new[] { 4, 3, 2 })
+            .Distinct()
+            .ToList();
+
+        var symbolCandidates = new List<string>();
+        if (normalized.Contains('.', StringComparison.Ordinal))
+        {
+            if (normalized.StartsWith("Application.", StringComparison.OrdinalIgnoreCase))
+            {
+                symbolCandidates.Add($"|vprop|Inovance-PLC.{normalized}");
+                symbolCandidates.Add($"|var|Inovance-PLC.{normalized}");
+                symbolCandidates.Add($"Inovance-PLC.{normalized}");
+                symbolCandidates.Add($"|vprop|{normalized}");
+            }
+
+            symbolCandidates.Add(normalized);
+
+            if (!normalized.StartsWith("|var|", StringComparison.Ordinal))
+            {
+                symbolCandidates.Add($"|var|{normalized}");
+            }
+        }
+
+        foreach (var namespaceIndex in namespaceIndexes)
+        {
+            foreach (var symbolCandidate in symbolCandidates)
+            {
+                yield return $"ns={namespaceIndex};s={symbolCandidate}";
+            }
+        }
     }
 
     private static async Task<ApplicationConfiguration> BuildConfigurationAsync()

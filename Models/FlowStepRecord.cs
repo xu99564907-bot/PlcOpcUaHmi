@@ -27,7 +27,7 @@ public partial class FlowStepRecord : ObservableObject
     private int stepNo;
 
     [ObservableProperty]
-    private string icon = "▶";
+    private string icon = "●";
 
     [ObservableProperty]
     private string title = string.Empty;

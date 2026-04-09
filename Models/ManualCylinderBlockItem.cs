@@ -32,6 +32,12 @@ public partial class ManualCylinderBlockItem : ObservableObject
     private string workInterlockTagName = string.Empty;
 
     [ObservableProperty]
+    private string homeValueTagName = string.Empty;
+
+    [ObservableProperty]
+    private string workValueTagName = string.Empty;
+
+    [ObservableProperty]
     private bool homeActive;
 
     [ObservableProperty]
@@ -45,6 +51,12 @@ public partial class ManualCylinderBlockItem : ObservableObject
 
     [ObservableProperty]
     private bool outputActive;
+
+    [ObservableProperty]
+    private bool homeCommandActive;
+
+    [ObservableProperty]
+    private bool workCommandActive;
 
     [ObservableProperty]
     private string statusText = "待机";

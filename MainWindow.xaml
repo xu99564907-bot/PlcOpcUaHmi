@@ -11,7 +11,8 @@
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
         mc:Ignorable="d"
-        Title="PLC OPC UA HMI Designer" Height="1080" Width="1880" WindowStartupLocation="CenterScreen" Background="#F8FAFC" WindowStyle="None" ResizeMode="CanResize">
+        Title="PLC OPC UA HMI Designer" Height="1080" Width="1880" WindowStartupLocation="CenterScreen" Background="#F8FAFC" WindowStyle="None" ResizeMode="CanResize"
+        PreviewMouseWheel="MainWindow_PreviewMouseWheel">
     <shell:WindowChrome.WindowChrome>
         <shell:WindowChrome CaptionHeight="40" ResizeBorderThickness="6" CornerRadius="0" GlassFrameThickness="0" UseAeroCaptionButtons="False"/>
     </shell:WindowChrome.WindowChrome>
@@ -23,6 +24,7 @@
         <conv:NavigationGroupVisibilityConverter x:Key="NavigationGroupVisibilityConverter"/>
         <conv:CurrentSectionToNavigationWidthConverter x:Key="CurrentSectionToNavigationWidthConverter"/>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+        <conv:DurationToWidthConverter x:Key="DurationToWidthConverter"/>
         <Style x:Key="SparklinePathStyle" TargetType="Path">
             <Setter Property="StrokeThickness" Value="2.5"/>
             <Setter Property="Stretch" Value="Fill"/>
@@ -515,7 +517,7 @@
                     </ControlTemplate>
                 </TabControl.Template>
                 <TabItem Header="运行总览">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" PreviewMouseLeftButtonDown="PageScrollViewer_PreviewMouseLeftButtonDown" PreviewGotKeyboardFocus="PageScrollViewer_PreviewGotKeyboardFocus" RequestBringIntoView="PageScrollViewer_RequestBringIntoView">
                     <Grid Margin="12" Width="{Binding ViewportWidth, RelativeSource={RelativeSource AncestorType=ScrollViewer}}">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
@@ -651,7 +653,7 @@
                 </TabItem>
 
                 <TabItem Header="监视画面">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" PreviewMouseLeftButtonDown="PageScrollViewer_PreviewMouseLeftButtonDown" PreviewGotKeyboardFocus="PageScrollViewer_PreviewGotKeyboardFocus" RequestBringIntoView="PageScrollViewer_RequestBringIntoView">
                     <Grid Margin="12" Width="{Binding ViewportWidth, RelativeSource={RelativeSource AncestorType=ScrollViewer}}">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="1.2*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                         <Border Grid.Column="0" Grid.ColumnSpan="2" Style="{StaticResource CardBorderStyle}" Padding="16" Visibility="{Binding IsMonitorProductionPageVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
@@ -767,12 +769,136 @@
                                 <Grid Visibility="{Binding IsMonitorProgramPageVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="240"/>
                                         <RowDefinition Height="*"/>
                                         <RowDefinition Height="Auto"/>
                                         <RowDefinition Height="Auto"/>
                                     </Grid.RowDefinitions>
                                     <TextBlock Text="{Binding SelectedFlowSummary}" Foreground="#93C5FD" Margin="0,0,0,8"/>
-                                    <DataGrid Grid.Row="1" ItemsSource="{Binding FlowStepsView}" AutoGenerateColumns="False" IsReadOnly="True" Background="#111827" Foreground="White" BorderBrush="#1F2937" Margin="0,0,0,12" RowStyle="{StaticResource HighlightRowStyle}">
+                                    <Border Grid.Row="1" Background="#0F172A" BorderBrush="#1F2937" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,0,0,12">
+                                        <Grid>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="*"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+                                            <DockPanel Margin="0,0,0,10">
+                                                <TextBlock Text="主流程步号 Trace" Foreground="White" FontSize="16" FontWeight="Bold"/>
+                                                <TextBlock DockPanel.Dock="Right" Text="横轴：时间 / 纵轴：主流程步号" Foreground="#94A3B8"/>
+                                            </DockPanel>
+                                            <Grid Grid.Row="1">
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="*"/>
+                                                </Grid.RowDefinitions>
+                                                <DockPanel Margin="0,0,0,10">
+                                                    <TextBlock Text="{Binding ProgramMonitorTraceLatestText}" Foreground="#93C5FD" FontWeight="Bold"/>
+                                                    <TextBlock DockPanel.Dock="Right" Text="{Binding ProgramMonitorTraceWindowText}" Foreground="#94A3B8"/>
+                                                </DockPanel>
+                                                <Grid Grid.Row="1">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="44"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <Grid Margin="0,6,10,24">
+                                                        <Grid.RowDefinitions>
+                                                            <RowDefinition Height="*"/>
+                                                            <RowDefinition Height="*"/>
+                                                            <RowDefinition Height="*"/>
+                                                            <RowDefinition Height="*"/>
+                                                        </Grid.RowDefinitions>
+                                                        <TextBlock Text="{Binding ProgramMonitorTraceAxisTopLabel}" Foreground="#94A3B8" FontSize="11" VerticalAlignment="Top"/>
+                                                        <TextBlock Grid.Row="1" Text="{Binding ProgramMonitorTraceAxisMidHighLabel}" Foreground="#94A3B8" FontSize="11" VerticalAlignment="Center"/>
+                                                        <TextBlock Grid.Row="2" Text="{Binding ProgramMonitorTraceAxisMidLowLabel}" Foreground="#94A3B8" FontSize="11" VerticalAlignment="Center"/>
+                                                        <TextBlock Grid.Row="3" Text="{Binding ProgramMonitorTraceAxisBottomLabel}" Foreground="#94A3B8" FontSize="11" VerticalAlignment="Bottom"/>
+                                                    </Grid>
+                                                    <Grid Grid.Column="1">
+                                                        <Border x:Name="ProgramTraceChartHost"
+                                                                Background="#111827"
+                                                                CornerRadius="8"
+                                                                MouseMove="ProgramTraceChartHost_MouseMove"
+                                                                MouseLeave="ProgramTraceChartHost_MouseLeave"
+                                                                MouseLeftButtonDown="ProgramTraceChartHost_MouseLeftButtonDown"
+                                                                MouseLeftButtonUp="ProgramTraceChartHost_MouseLeftButtonUp"
+                                                                MouseRightButtonDown="ProgramTraceChartHost_MouseRightButtonDown"
+                                                                MouseWheel="ProgramTraceChartHost_MouseWheel">
+                                                            <Grid Margin="12">
+                                                                <Rectangle Fill="#111827" RadiusX="8" RadiusY="8"/>
+                                                                <Grid>
+                                                                    <Grid.RowDefinitions>
+                                                                        <RowDefinition Height="*"/>
+                                                                        <RowDefinition Height="*"/>
+                                                                        <RowDefinition Height="*"/>
+                                                                        <RowDefinition Height="*"/>
+                                                                    </Grid.RowDefinitions>
+                                                                    <Border Grid.Row="0" BorderBrush="#1F2937" BorderThickness="0,0,0,1"/>
+                                                                    <Border Grid.Row="1" BorderBrush="#1F2937" BorderThickness="0,0,0,1"/>
+                                                                    <Border Grid.Row="2" BorderBrush="#1F2937" BorderThickness="0,0,0,1"/>
+                                                                    <Border Grid.Row="3" BorderBrush="#1F2937" BorderThickness="0,0,0,1"/>
+                                                                </Grid>
+                                                                <Path Data="{Binding ProgramMonitorMainFlowTracePath}" Stroke="#60A5FA" Style="{StaticResource SparklinePathStyle}" Visibility="{Binding ProgramMonitorTraceShowLine1, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                                <Path Data="{Binding ProgramMonitorSubFlow2TracePath}" Stroke="#F59E0B" Style="{StaticResource SparklinePathStyle}" Visibility="{Binding ProgramMonitorTraceShowLine2, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                                <Path Data="{Binding ProgramMonitorSubFlow3TracePath}" Stroke="#22C55E" Style="{StaticResource SparklinePathStyle}" Visibility="{Binding ProgramMonitorTraceShowLine3, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                                <Canvas>
+                                                                    <Line x:Name="ProgramTraceHoverXLine" Visibility="Collapsed" Stroke="#64748B" StrokeThickness="1" StrokeDashArray="3,3" Y1="0" Y2="400"/>
+                                                                    <Line x:Name="ProgramTraceHoverYLine" Visibility="Collapsed" Stroke="#64748B" StrokeThickness="1" StrokeDashArray="3,3" X1="0" X2="400"/>
+                                                                    <Line x:Name="ProgramTraceCursorALine" Visibility="Collapsed" Stroke="#F59E0B" StrokeThickness="2" Y1="0" Y2="400"/>
+                                                                    <Line x:Name="ProgramTraceCursorBLine" Visibility="Collapsed" Stroke="#22C55E" StrokeThickness="2" Y1="0" Y2="400"/>
+                                                                    <Rectangle x:Name="ProgramTraceSelectionRect" Visibility="Collapsed" Fill="#60A5FA" Opacity="0.25" Stroke="#93C5FD" StrokeThickness="1"/>
+                                                                </Canvas>
+                                                            </Grid>
+                                                        </Border>
+                                                    </Grid>
+                                                </Grid>
+                                            </Grid>
+                                            <Grid Grid.Row="2" Margin="44,10,0,0">
+                                                <StackPanel>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Text="{Binding ProgramMonitorTraceStartLabel}" Foreground="#94A3B8"/>
+                                                        <TextBlock Grid.Column="1" Text="{Binding ProgramMonitorTraceEndLabel}" Foreground="#94A3B8"/>
+                                                    </Grid>
+                                                    <DockPanel Margin="0,8,0,0">
+                                                        <TextBlock Text="{Binding ProgramMonitorCursorText}" Foreground="#CBD5E1"/>
+                                                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                                            <CheckBox Content="主线1" IsChecked="{Binding ProgramMonitorTraceShowLine1, Mode=TwoWay}" Foreground="#60A5FA" Margin="0,0,12,0" VerticalAlignment="Center"/>
+                                                            <CheckBox Content="主线2" IsChecked="{Binding ProgramMonitorTraceShowLine2, Mode=TwoWay}" Foreground="#F59E0B" Margin="0,0,12,0" VerticalAlignment="Center"/>
+                                                            <CheckBox Content="主线3" IsChecked="{Binding ProgramMonitorTraceShowLine3, Mode=TwoWay}" Foreground="#22C55E" Margin="0,0,16,0" VerticalAlignment="Center"/>
+                                                            <TextBlock Text="光标跟随" Foreground="#94A3B8" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                                            <ComboBox Width="90" ItemsSource="{Binding ProgramMonitorTraceFlowOptions}" SelectedItem="{Binding SelectedProgramMonitorTraceFlow, Mode=TwoWay}" Margin="0,0,16,0"/>
+                                                            <TextBlock Text="Shift+左键拖拽缩放，双击复位" Foreground="#94A3B8" VerticalAlignment="Center" Margin="0,0,16,0"/>
+                                                            <TextBlock Text="缩放" Foreground="#94A3B8" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                                            <Slider Width="180" Minimum="1" Maximum="30" TickFrequency="1" IsSnapToTickEnabled="True" Value="{Binding ProgramMonitorTraceWindowMinutes, Mode=TwoWay}"/>
+                                                        </StackPanel>
+                                                    </DockPanel>
+                                                    <DockPanel Margin="0,8,0,0">
+                                                        <TextBlock Text="{Binding ProgramMonitorCursorAText}" Foreground="#F59E0B" Margin="0,0,16,0"/>
+                                                        <TextBlock Text="{Binding ProgramMonitorCursorBText}" Foreground="#22C55E" Margin="0,0,16,0"/>
+                                                        <TextBlock Text="{Binding ProgramMonitorCursorDeltaText}" Foreground="#E2E8F0"/>
+                                                    </DockPanel>
+                                                    <DockPanel Margin="0,8,0,0">
+                                                        <TextBlock Text="{Binding ProgramMonitorTraceReplayText}" Foreground="#93C5FD" VerticalAlignment="Center" Margin="0,0,16,0"/>
+                                                        <Button Content="暂停采样" Command="{Binding PauseProgramMonitorTraceCommand}" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="10,4" Margin="0,0,8,0"/>
+                                                        <Button Content="继续采样" Command="{Binding ResumeProgramMonitorTraceCommand}" Background="#0F766E" Foreground="White" BorderBrush="#0F766E" Padding="10,4" Margin="0,0,8,0"/>
+                                                        <Button Content="历史回放" Command="{Binding EnterProgramMonitorTraceReplayCommand}" Background="#1D4ED8" Foreground="White" BorderBrush="#1D4ED8" Padding="10,4" Margin="0,0,8,0"/>
+                                                        <Button Content="回到实时" Command="{Binding ReturnProgramMonitorTraceToRealtimeCommand}" Background="#475569" Foreground="White" BorderBrush="#475569" Padding="10,4" Margin="0,0,16,0"/>
+                                                        <Button Content="导出CSV" Command="{Binding ExportProgramMonitorTraceCsvCommand}" Background="#0F766E" Foreground="White" BorderBrush="#0F766E" Padding="10,4" Margin="0,0,16,0"/>
+                                                        <Button Content="保存会话" Command="{Binding SaveProgramMonitorTraceSessionCommand}" Background="#2563EB" Foreground="White" BorderBrush="#2563EB" Padding="10,4" Margin="0,0,8,0"/>
+                                                        <Button Content="加载会话" Command="{Binding LoadProgramMonitorTraceSessionCommand}" Background="#7C3AED" Foreground="White" BorderBrush="#7C3AED" Padding="10,4" Margin="0,0,16,0"/>
+                                                        <TextBlock Text="定位时间" Foreground="#94A3B8" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                                        <TextBox Width="120" Text="{Binding ProgramMonitorTraceLocateTime, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,8,0"/>
+                                                        <Button Content="定位" Command="{Binding LocateProgramMonitorTraceTimeCommand}" Background="#7C3AED" Foreground="White" BorderBrush="#7C3AED" Padding="10,4" Margin="0,0,16,0"/>
+                                                        <TextBlock Text="回放" Foreground="#94A3B8" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                                        <Slider Width="220" Minimum="0" Maximum="{Binding ProgramMonitorTraceReplayMaximum}" TickFrequency="1" IsSnapToTickEnabled="True" Value="{Binding ProgramMonitorTraceReplayPosition, Mode=TwoWay}" IsEnabled="{Binding HasProgramMonitorTraceHistory}"/>
+                                                    </DockPanel>
+                                                </StackPanel>
+                                            </Grid>
+                                        </Grid>
+                                    </Border>
+                                    <DataGrid Grid.Row="2" ItemsSource="{Binding FlowStepsView}" AutoGenerateColumns="False" IsReadOnly="True" Background="#111827" Foreground="White" BorderBrush="#1F2937" Margin="0,0,0,12" RowStyle="{StaticResource HighlightRowStyle}">
                                         <DataGrid.Columns>
                                             <DataGridTextColumn Header="流程" Binding="{Binding FlowName}" Width="*"/>
                                             <DataGridTextColumn Header="步号" Binding="{Binding StepNo}" Width="*"/>
@@ -790,8 +916,8 @@
                                             </DataGridTemplateColumn>
                                         </DataGrid.Columns>
                                     </DataGrid>
-                                    <WrapPanel Grid.Row="2" Margin="0,0,0,8"><TextBlock Text="流程异常统计汇总 / 排行榜" Foreground="#FCD34D" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,12,0"/><Button Content="跳转报警页" Command="{Binding JumpToAlarmPageCommand}" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="10,6" Margin="0,0,8,0"/><Button Content="跳转审计页" Command="{Binding JumpToAuditPageCommand}" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="10,6" Margin="0,0,8,0"/><Button Content="导出异常报告" Command="{Binding ExportFlowIssueReportCommand}" Background="#0F766E" Foreground="White" BorderBrush="#0F766E" Padding="10,6"/></WrapPanel>
-                                    <DataGrid Grid.Row="3" ItemsSource="{Binding FlowIssueSummaries}" AutoGenerateColumns="False" IsReadOnly="True" Background="#111827" Foreground="White" BorderBrush="#1F2937" Height="150">
+                                    <WrapPanel Grid.Row="3" Margin="0,0,0,8"><TextBlock Text="流程异常统计汇总 / 排行榜" Foreground="#FCD34D" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,12,0"/><Button Content="跳转报警页" Command="{Binding JumpToAlarmPageCommand}" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="10,6" Margin="0,0,8,0"/><Button Content="跳转审计页" Command="{Binding JumpToAuditPageCommand}" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="10,6" Margin="0,0,8,0"/><Button Content="导出异常报告" Command="{Binding ExportFlowIssueReportCommand}" Background="#0F766E" Foreground="White" BorderBrush="#0F766E" Padding="10,6"/></WrapPanel>
+                                    <DataGrid Grid.Row="4" ItemsSource="{Binding FlowIssueSummaries}" AutoGenerateColumns="False" IsReadOnly="True" Background="#111827" Foreground="White" BorderBrush="#1F2937" Height="150">
                                         <DataGrid.Columns>
                                             <DataGridTextColumn Header="分类" Binding="{Binding Category}" Width="*"/>
                                             <DataGridTextColumn Header="对象" Binding="{Binding Name}" Width="*"/>
@@ -814,7 +940,7 @@
                 </TabItem>
 
                 <TabItem Header="配方管理">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" PreviewMouseLeftButtonDown="PageScrollViewer_PreviewMouseLeftButtonDown" PreviewGotKeyboardFocus="PageScrollViewer_PreviewGotKeyboardFocus" RequestBringIntoView="PageScrollViewer_RequestBringIntoView">
                     <Grid Margin="12" Width="{Binding ViewportWidth, RelativeSource={RelativeSource AncestorType=ScrollViewer}}">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="360"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                         <Border Grid.Column="0" Style="{StaticResource CardBorderStyle}" Padding="16" Margin="0,0,10,0">
@@ -874,7 +1000,7 @@
                 </TabItem>
 
                 <TabItem Header="手动画面">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" PreviewMouseLeftButtonDown="PageScrollViewer_PreviewMouseLeftButtonDown" PreviewGotKeyboardFocus="PageScrollViewer_PreviewGotKeyboardFocus" RequestBringIntoView="PageScrollViewer_RequestBringIntoView">
                     <Grid Margin="12" Width="{Binding ViewportWidth, RelativeSource={RelativeSource AncestorType=ScrollViewer}}">
                         <Border Style="{StaticResource CardBorderStyle}" Padding="16">
                             <StackPanel>
@@ -912,7 +1038,7 @@
                                                                                 <Setter Property="Background" Value="#E6F4EA"/>
                                                                                 <Setter Property="BorderBrush" Value="#A7D7B5"/>
                                                                                 <Style.Triggers>
-                                                                                    <DataTrigger Binding="{Binding HomeActive}" Value="True">
+                                                                                    <DataTrigger Binding="{Binding HomeCommandActive}" Value="True">
                                                                                         <Setter Property="Background" Value="#BFE3C8"/>
                                                                                         <Setter Property="BorderBrush" Value="#6FA882"/>
                                                                                     </DataTrigger>
@@ -926,7 +1052,7 @@
                                                                                 <Setter Property="Background" Value="#FFF7DB"/>
                                                                                 <Setter Property="BorderBrush" Value="#E9CD76"/>
                                                                                 <Style.Triggers>
-                                                                                    <DataTrigger Binding="{Binding OutputActive}" Value="True">
+                                                                                    <DataTrigger Binding="{Binding WorkCommandActive}" Value="True">
                                                                                         <Setter Property="Background" Value="#FFE9A8"/>
                                                                                         <Setter Property="BorderBrush" Value="#D0A93A"/>
                                                                                     </DataTrigger>
@@ -1044,7 +1170,7 @@
                 </TabItem>
 
                 <TabItem Header="参数设定">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" PreviewMouseLeftButtonDown="PageScrollViewer_PreviewMouseLeftButtonDown" PreviewGotKeyboardFocus="PageScrollViewer_PreviewGotKeyboardFocus" RequestBringIntoView="PageScrollViewer_RequestBringIntoView">
                     <Grid Margin="12" Width="{Binding ViewportWidth, RelativeSource={RelativeSource AncestorType=ScrollViewer}}">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
@@ -1187,7 +1313,7 @@
                 </TabItem>
 
                 <TabItem Header="报警画面">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" PreviewMouseLeftButtonDown="PageScrollViewer_PreviewMouseLeftButtonDown" PreviewGotKeyboardFocus="PageScrollViewer_PreviewGotKeyboardFocus" RequestBringIntoView="PageScrollViewer_RequestBringIntoView">
                     <Grid Margin="12" Width="{Binding ViewportWidth, RelativeSource={RelativeSource AncestorType=ScrollViewer}}">
                         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
                         <Border Grid.Row="0" Style="{StaticResource CardBorderStyle}" Padding="16" Margin="0,0,0,12"><DockPanel><StackPanel><TextBlock Text="{Binding CurrentAlarmTitle}" FontSize="20" FontWeight="Bold" Foreground="White"/><TextBlock Text="报警父页面已按左侧子导航切换显示。" Foreground="#94A3B8" Margin="0,8,0,0"/></StackPanel><WrapPanel DockPanel.Dock="Right"><Button Content="确认全部报警" Command="{Binding AcknowledgeAllAlarmsCommand}" Style="{StaticResource PrimaryButtonStyle}"/><Button Content="复位全部报警" Command="{Binding ResetAllAlarmsCommand}" Background="#B91C1C" Foreground="White" BorderBrush="#B91C1C" Padding="14,8" Margin="0,0,8,0"/><Button Content="保存报警历史" Command="{Binding SaveAlarmHistoryCommand}" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="14,8" Margin="0,0,8,0"/><Button Content="加载报警历史" Command="{Binding LoadAlarmHistoryCommand}" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="14,8"/></WrapPanel></DockPanel></Border>
@@ -1202,7 +1328,7 @@
                 </TabItem>
 
                 <TabItem Header="登录权限">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" PreviewMouseLeftButtonDown="PageScrollViewer_PreviewMouseLeftButtonDown" PreviewGotKeyboardFocus="PageScrollViewer_PreviewGotKeyboardFocus" RequestBringIntoView="PageScrollViewer_RequestBringIntoView">
                     <Grid Margin="12" Width="{Binding ViewportWidth, RelativeSource={RelativeSource AncestorType=ScrollViewer}}"><Grid.ColumnDefinitions><ColumnDefinition Width="360"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                         <Border Grid.Column="0" Style="{StaticResource CardBorderStyle}" Padding="16" Margin="0,0,10,0"><StackPanel><TextBlock Text="登录权限" FontSize="20" FontWeight="Bold" Foreground="White" Margin="0,0,0,12"/><TextBlock Text="当前身份" Foreground="#CBD5E1"/><TextBlock Text="{Binding CurrentRoleText}" FontSize="24" FontWeight="Bold" Foreground="White" Margin="0,4,0,12"/><TextBlock Text="密码" Foreground="#CBD5E1"/><PasswordBox x:Name="RolePasswordBox" PasswordChanged="RolePasswordBox_PasswordChanged" Margin="0,4,0,12"/><WrapPanel><Button Content="操作员" Command="{Binding LoginCommand}" CommandParameter="Operator" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="12,8" Margin="0,0,8,8"/><Button Content="工程师" Command="{Binding LoginCommand}" CommandParameter="Engineer" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="12,8" Margin="0,0,8,8"/><Button Content="管理员" Command="{Binding LoginCommand}" CommandParameter="Administrator" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="12,8" Margin="0,0,8,8"/></WrapPanel><Button Content="退出登录" Command="{Binding LogoutCommand}" Background="#B91C1C" Foreground="White" BorderBrush="#B91C1C" Padding="12,8" Width="120"/><TextBlock Text="示例密码：工程师 123456，管理员 admin888" Margin="0,12,0,0" Foreground="#94A3B8" TextWrapping="Wrap"/></StackPanel></Border>
                         <Border Grid.Column="1" Style="{StaticResource CardBorderStyle}" Padding="16"><StackPanel><TextBlock Text="权限说明" FontSize="18" FontWeight="Bold" Foreground="White" Margin="0,0,0,12"/><TextBlock Text="操作员：查看、监控、设备操作。" Foreground="#CBD5E1" Margin="0,0,0,8"/><TextBlock Text="工程师：可修改大部分工艺与设备参数。" Foreground="#CBD5E1" Margin="0,0,0,8"/><TextBlock Text="管理员：最高权限，可维护系统级参数和报警复位。" Foreground="#CBD5E1" Margin="0,0,0,8"/><TextBlock Text="当前参数页是否允许编辑：" Foreground="#CBD5E1" Margin="0,12,0,4"/><TextBlock Text="{Binding CanEditParameters}" FontSize="24" FontWeight="Bold" Foreground="White"/><TextBlock Text="当前是否允许报警复位：" Foreground="#CBD5E1" Margin="0,12,0,4"/><TextBlock Text="{Binding CanAdmin}" FontSize="24" FontWeight="Bold" Foreground="White"/></StackPanel></Border>
@@ -1211,7 +1337,7 @@
                 </TabItem>
 
                 <TabItem Header="操作审计">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" PreviewMouseLeftButtonDown="PageScrollViewer_PreviewMouseLeftButtonDown" PreviewGotKeyboardFocus="PageScrollViewer_PreviewGotKeyboardFocus" RequestBringIntoView="PageScrollViewer_RequestBringIntoView">
                     <Grid Margin="12" Width="{Binding ViewportWidth, RelativeSource={RelativeSource AncestorType=ScrollViewer}}">
                         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
                         <Border Grid.Row="0" Style="{StaticResource CardBorderStyle}" Padding="16" Margin="0,0,0,12"><StackPanel><TextBlock Text="操作履历审计" FontSize="20" FontWeight="Bold" Foreground="White"/><TextBlock Text="记录登录、确认框、联锁拦截、设备操作、弹窗提示等行为。" Foreground="#94A3B8" Margin="0,8,0,0"/></StackPanel></Border>
@@ -1221,7 +1347,7 @@
                 </TabItem>
 
                 <TabItem Header="设计器">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" PreviewMouseLeftButtonDown="PageScrollViewer_PreviewMouseLeftButtonDown" PreviewGotKeyboardFocus="PageScrollViewer_PreviewGotKeyboardFocus" RequestBringIntoView="PageScrollViewer_RequestBringIntoView">
                     <Grid Margin="12" Width="{Binding ViewportWidth, RelativeSource={RelativeSource AncestorType=ScrollViewer}}" Visibility="{Binding IsDesignMode, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
@@ -1497,7 +1623,13 @@
                     <Border Background="#ECFDF5" BorderBrush="#A7F3D0" BorderThickness="1" CornerRadius="12" Padding="10,4" Margin="0,0,10,0">
                             <TextBlock Text="{Binding CurrentRoleText}" Foreground="#047857" FontWeight="SemiBold" VerticalAlignment="Center"/>
                     </Border>
-                    <TextBlock Text="{Binding SystemMessage}" Foreground="White" VerticalAlignment="Center"/>
+                    <Border Background="#DBEAFE" BorderBrush="#93C5FD" BorderThickness="1" CornerRadius="12" Padding="10,4" Margin="0,0,10,0">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="PLC：" Foreground="#1D4ED8" VerticalAlignment="Center"/>
+                            <TextBlock Text="{Binding CommunicationStatus}" Foreground="#1D4ED8" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+                    <TextBlock Text="{Binding SystemMessage}" Foreground="#0F172A" VerticalAlignment="Center"/>
                 </WrapPanel>
                     <TextBlock DockPanel.Dock="Right" Text="C# / WPF / OPC UA / HMI Designer" Foreground="#64748B" VerticalAlignment="Center"/>
             </DockPanel>

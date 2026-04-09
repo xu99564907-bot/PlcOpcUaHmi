@@ -1,10 +1,12 @@
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Threading;
 using PlcOpcUaHmi.Models;
 using PlcOpcUaHmi.ViewModels;
@@ -16,6 +18,9 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _startPressTimer = new() { Interval = TimeSpan.FromMilliseconds(100) };
     private bool _startHandled;
     private int _startHoldTicks;
+    private bool _isProgramTraceSelecting;
+    private double _programTraceSelectionStartX;
+    private readonly Dictionary<ScrollViewer, double> _pageScrollOffsets = new();
 
     public MainWindow()
     {
@@ -239,6 +244,71 @@ public partial class MainWindow : Window
         }
     }
 
+    private void MainWindow_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (e.OriginalSource is not DependencyObject source)
+        {
+            return;
+        }
+
+        var scrollViewer = FindAncestor<ScrollViewer>(source);
+        if (scrollViewer is null || scrollViewer.ScrollableHeight <= 0)
+        {
+            return;
+        }
+
+        scrollViewer.ScrollToVerticalOffset(scrollViewer.VerticalOffset - e.Delta / 3.0);
+        e.Handled = true;
+    }
+
+    private void PageScrollViewer_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is ScrollViewer scrollViewer)
+        {
+            _pageScrollOffsets[scrollViewer] = scrollViewer.VerticalOffset;
+        }
+    }
+
+    private void PageScrollViewer_PreviewGotKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
+    {
+        if (sender is ScrollViewer scrollViewer)
+        {
+            _pageScrollOffsets[scrollViewer] = scrollViewer.VerticalOffset;
+        }
+    }
+
+    private void PageScrollViewer_RequestBringIntoView(object sender, RequestBringIntoViewEventArgs e)
+    {
+        if (sender is not ScrollViewer scrollViewer
+            || e.OriginalSource is not FrameworkElement target
+            || ReferenceEquals(scrollViewer, target))
+        {
+            return;
+        }
+
+        var offset = _pageScrollOffsets.TryGetValue(scrollViewer, out var rememberedOffset)
+            ? rememberedOffset
+            : scrollViewer.VerticalOffset;
+
+        Dispatcher.BeginInvoke(() => scrollViewer.ScrollToVerticalOffset(offset), DispatcherPriority.Background);
+        e.Handled = true;
+    }
+
+    private static T? FindAncestor<T>(DependencyObject? current) where T : DependencyObject
+    {
+        while (current is not null)
+        {
+            if (current is T match)
+            {
+                return match;
+            }
+
+            current = VisualTreeHelper.GetParent(current);
+        }
+
+        return null;
+    }
+
     private void ToolboxItem_PreviewMouseMove(object sender, MouseEventArgs e)
     {
         if (e.LeftButton != MouseButtonState.Pressed)
@@ -350,17 +420,209 @@ public partial class MainWindow : Window
         }
     }
 
+    private void ProgramTraceChartHost_MouseMove(object sender, MouseEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm || sender is not FrameworkElement element || element.ActualWidth <= 0)
+        {
+            return;
+        }
+
+        var point = e.GetPosition(element);
+        var normalized = point.X / element.ActualWidth;
+        vm.UpdateProgramMonitorCursor(normalized);
+        UpdateProgramTraceHoverLines(element, point.X, point.Y);
+
+        if (_isProgramTraceSelecting)
+        {
+            UpdateProgramTraceSelection(element, point.X);
+        }
+    }
+
+    private void ProgramTraceChartHost_MouseLeave(object sender, MouseEventArgs e)
+    {
+        HideProgramTraceHoverLines(sender as FrameworkElement);
+    }
+
+    private void ProgramTraceChartHost_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm || sender is not FrameworkElement element || element.ActualWidth <= 0)
+        {
+            return;
+        }
+
+        if (e.ClickCount >= 2)
+        {
+            vm.ResetProgramMonitorTraceZoom();
+            HideProgramTraceSelection(element);
+            e.Handled = true;
+            return;
+        }
+
+        var point = e.GetPosition(element);
+        var normalized = point.X / element.ActualWidth;
+        if ((Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift)
+        {
+            _isProgramTraceSelecting = true;
+            _programTraceSelectionStartX = point.X;
+            element.CaptureMouse();
+            UpdateProgramTraceSelection(element, point.X);
+            e.Handled = true;
+            return;
+        }
+
+        vm.SetProgramMonitorCursorA(normalized);
+        UpdateProgramTraceCursorLine(ProgramTraceCursorALine, element, point.X);
+    }
+
+    private void ProgramTraceChartHost_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (!_isProgramTraceSelecting || DataContext is not MainViewModel vm || sender is not FrameworkElement element || element.ActualWidth <= 0)
+        {
+            return;
+        }
+
+        var point = e.GetPosition(element);
+        var startNormalized = _programTraceSelectionStartX / element.ActualWidth;
+        var endNormalized = point.X / element.ActualWidth;
+        HideProgramTraceSelection(element);
+        element.ReleaseMouseCapture();
+        _isProgramTraceSelecting = false;
+
+        if (Math.Abs(point.X - _programTraceSelectionStartX) >= 8)
+        {
+            vm.ZoomProgramMonitorTraceRange(startNormalized, endNormalized);
+        }
+
+        e.Handled = true;
+    }
+
+    private void ProgramTraceChartHost_MouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm || sender is not FrameworkElement element || element.ActualWidth <= 0)
+        {
+            return;
+        }
+
+        var point = e.GetPosition(element);
+        var normalized = point.X / element.ActualWidth;
+        vm.SetProgramMonitorCursorB(normalized);
+        UpdateProgramTraceCursorLine(ProgramTraceCursorBLine, element, point.X);
+        e.Handled = true;
+    }
+
+    private void ProgramTraceChartHost_MouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        vm.ZoomProgramMonitorTrace(e.Delta);
+        e.Handled = true;
+    }
+
+    private static void UpdateProgramTraceCursorLine(System.Windows.Shapes.Line? line, FrameworkElement host, double x)
+    {
+        if (line is null)
+        {
+            return;
+        }
+
+        var clampedX = Math.Max(0, Math.Min(host.ActualWidth, x));
+        line.Visibility = Visibility.Visible;
+        line.X1 = clampedX;
+        line.X2 = clampedX;
+        line.Y1 = 0;
+        line.Y2 = Math.Max(0, host.ActualHeight);
+    }
+
+    private void UpdateProgramTraceHoverLines(FrameworkElement host, double x, double y)
+    {
+        var clampedX = Math.Max(0, Math.Min(host.ActualWidth, x));
+        var clampedY = Math.Max(0, Math.Min(host.ActualHeight, y));
+
+        if (ProgramTraceHoverXLine is not null)
+        {
+            ProgramTraceHoverXLine.Visibility = Visibility.Visible;
+            ProgramTraceHoverXLine.X1 = clampedX;
+            ProgramTraceHoverXLine.X2 = clampedX;
+            ProgramTraceHoverXLine.Y1 = 0;
+            ProgramTraceHoverXLine.Y2 = Math.Max(0, host.ActualHeight);
+        }
+
+        if (ProgramTraceHoverYLine is not null)
+        {
+            ProgramTraceHoverYLine.Visibility = Visibility.Visible;
+            ProgramTraceHoverYLine.X1 = 0;
+            ProgramTraceHoverYLine.X2 = Math.Max(0, host.ActualWidth);
+            ProgramTraceHoverYLine.Y1 = clampedY;
+            ProgramTraceHoverYLine.Y2 = clampedY;
+        }
+    }
+
+    private void HideProgramTraceHoverLines(FrameworkElement? host)
+    {
+        if (ProgramTraceHoverXLine is not null)
+        {
+            ProgramTraceHoverXLine.Visibility = Visibility.Collapsed;
+            ProgramTraceHoverXLine.X1 = 0;
+            ProgramTraceHoverXLine.X2 = 0;
+            ProgramTraceHoverXLine.Y1 = 0;
+            ProgramTraceHoverXLine.Y2 = Math.Max(0, host?.ActualHeight ?? 0);
+        }
+
+        if (ProgramTraceHoverYLine is not null)
+        {
+            ProgramTraceHoverYLine.Visibility = Visibility.Collapsed;
+            ProgramTraceHoverYLine.X1 = 0;
+            ProgramTraceHoverYLine.X2 = Math.Max(0, host?.ActualWidth ?? 0);
+            ProgramTraceHoverYLine.Y1 = 0;
+            ProgramTraceHoverYLine.Y2 = 0;
+        }
+    }
+
+    private void UpdateProgramTraceSelection(FrameworkElement host, double currentX)
+    {
+        if (ProgramTraceSelectionRect is null)
+        {
+            return;
+        }
+
+        var left = Math.Max(0, Math.Min(_programTraceSelectionStartX, currentX));
+        var right = Math.Min(host.ActualWidth, Math.Max(_programTraceSelectionStartX, currentX));
+
+        ProgramTraceSelectionRect.Visibility = Visibility.Visible;
+        ProgramTraceSelectionRect.Width = Math.Max(0, right - left);
+        ProgramTraceSelectionRect.Height = Math.Max(0, host.ActualHeight);
+        Canvas.SetLeft(ProgramTraceSelectionRect, left);
+        Canvas.SetTop(ProgramTraceSelectionRect, 0);
+    }
+
+    private void HideProgramTraceSelection(FrameworkElement host)
+    {
+        if (ProgramTraceSelectionRect is null)
+        {
+            return;
+        }
+
+        ProgramTraceSelectionRect.Visibility = Visibility.Collapsed;
+        ProgramTraceSelectionRect.Width = 0;
+        ProgramTraceSelectionRect.Height = Math.Max(0, host.ActualHeight);
+        Canvas.SetLeft(ProgramTraceSelectionRect, 0);
+        Canvas.SetTop(ProgramTraceSelectionRect, 0);
+    }
+
     private void ShowUsageHelpMenuItem_Click(object sender, RoutedEventArgs e)
     {
         const string message =
             "文件 > 导入 XML 变量：导入 XML 变量表\r\n" +
             "文件 > 导入 CSV 变量：导入 CSV 变量表\r\n" +
-            "文件 > 导入 IO 表：导入四列表头的 IO 地址/注释表\r\n" +
-            "文件 > 生成 IO 程序：按 AAS-PLC 思路生成 DB_IO、DI_ACT_Comment、DO_ACT_Comment\r\n" +
+            "文件 > 导入 IO 表：导入四列表头的 IO 地址和注释\r\n" +
+            "文件 > 生成手动程序：按模板生成 IO、对象和手动程序文件\r\n" +
             "文件 > 导入流程 CSV：导入流程分析数据\r\n" +
             "窗口：运行/设计态切换、最大化、还原、置顶\r\n" +
             "帮助：查看 README 和关于信息\r\n" +
-            "设计器：右侧已增加 IO 导入、生成和结果预览区\r\n" +
+            "设计器：支持手动程序生成、自动程序生成和结果预览\r\n" +
             "监视画面：可直接浏览 OPC UA 节点并加入变量表";
 
         MessageBox.Show(this, message, "使用说明", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -426,12 +688,7 @@ public partial class MainWindow : Window
         }
 
         await vm.ConnectCommand.ExecuteAsync(null);
-        MessageBox.Show(
-            this,
-            vm.SystemMessage,
-            "PLC 连接结果",
-            MessageBoxButton.OK,
-            vm.CommunicationStatus == "已连接" ? MessageBoxImage.Information : MessageBoxImage.Error);
+        return;
     }
 
     private async void DisconnectButton_Click(object sender, RoutedEventArgs e)
@@ -442,7 +699,6 @@ public partial class MainWindow : Window
         }
 
         await vm.DisconnectCommand.ExecuteAsync(null);
-        MessageBox.Show(this, vm.SystemMessage, "PLC 连接结果", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
     private void OpcUaBrowserTreeView_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
@@ -490,10 +746,10 @@ public partial class MainWindow : Window
             BorderBrush = System.Windows.Media.Brushes.LightGray,
             ItemsSource = vm.IoTableRows
         };
-        previewGrid.Columns.Add(new DataGridTextColumn { Header = "输入地址", Binding = new System.Windows.Data.Binding("InputAddress"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
-        previewGrid.Columns.Add(new DataGridTextColumn { Header = "输入注释", Binding = new System.Windows.Data.Binding("InputComment"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
-        previewGrid.Columns.Add(new DataGridTextColumn { Header = "输出地址", Binding = new System.Windows.Data.Binding("OutputAddress"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
-        previewGrid.Columns.Add(new DataGridTextColumn { Header = "输出注释", Binding = new System.Windows.Data.Binding("OutputComment"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
+        previewGrid.Columns.Add(new DataGridTextColumn { Header = "杈撳叆鍦板潃", Binding = new System.Windows.Data.Binding("InputAddress"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
+        previewGrid.Columns.Add(new DataGridTextColumn { Header = "杈撳叆娉ㄩ噴", Binding = new System.Windows.Data.Binding("InputComment"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
+        previewGrid.Columns.Add(new DataGridTextColumn { Header = "杈撳嚭鍦板潃", Binding = new System.Windows.Data.Binding("OutputAddress"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
+        previewGrid.Columns.Add(new DataGridTextColumn { Header = "杈撳嚭娉ㄩ噴", Binding = new System.Windows.Data.Binding("OutputComment"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
         ShowPreviewWindow("IO 表预览", previewGrid, 1200, 760);
     }
 
@@ -524,8 +780,8 @@ public partial class MainWindow : Window
         };
 
         var title = vm.SelectedGeneratedIoProgram?.DisplayName is { Length: > 0 } displayName
-            ? $"程序预览 - {displayName}"
-            : "程序预览";
+            ? $"绋嬪簭棰勮 - {displayName}"
+            : "绋嬪簭棰勮";
         ShowPreviewWindow(title, previewTextBox, 1100, 760);
     }
 

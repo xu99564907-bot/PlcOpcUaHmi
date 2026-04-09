@@ -7,6 +7,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.ComponentModel;
@@ -36,6 +37,7 @@ public partial class MainViewModel : ObservableObject
     private readonly RecipeService _recipeService = new();
     private readonly TrendHistoryService _trendHistoryService = new();
     private readonly DispatcherTimer _subscriptionTimer;
+    private readonly DispatcherTimer _opcUaBrowserRefreshTimer;
     private readonly Dictionary<string, AlarmRecord> _activeAlarmMap = new(StringComparer.OrdinalIgnoreCase);
     private string _currentIoSourceFilePath = string.Empty;
     private int _currentIoSourceEncodingCodePage = 65001;
@@ -48,6 +50,13 @@ public partial class MainViewModel : ObservableObject
     private DesignerElement? _clipboardElement;
     private DesignerElement? _designerSelectionSubscription;
     private bool _isRefreshing;
+    private FlowStepRecord? _programMonitorCursorASample;
+    private FlowStepRecord? _programMonitorCursorBSample;
+    private readonly List<FlowStepRecord> _programMonitorTraceHistory = new();
+    private bool _programMonitorTraceFollowNow = true;
+    private DateTime _programMonitorTraceWindowEnd = DateTime.Now;
+    private bool _isRefreshingSelectedOpcUaNode;
+    private bool _isLoadingSelectedCylinderParmSettings;
 
     public event Action<string, string, string>? PopupRequested;
     public event Func<string, string, bool>? ConfirmationRequested;
@@ -89,6 +98,7 @@ public partial class MainViewModel : ObservableObject
     public ObservableCollection<string> FlowTimeRangeOptions { get; } = new() { "全部", "本班次", "今日", "近7天" };
     public ObservableCollection<string> FlowStepFilterOptions { get; } = new() { "全部", "10", "20", "30", "40", "50", "60" };
     public ObservableCollection<string> IoPlcTemplateOptions { get; } = new() { "汇川中型PLC" };
+    public ObservableCollection<string> ProgramMonitorTraceFlowOptions { get; } = new() { "主线1", "主线2", "主线3" };
 
     [ObservableProperty] private OpcUaConnectionOptions connection = new();
     [ObservableProperty] private int selectedTabIndex;
@@ -144,9 +154,9 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private string cylinderHomeInterlockTagName = string.Empty;
     [ObservableProperty] private string cylinderWorkInterlockTagName = string.Empty;
     [ObservableProperty] private ManualCylinderBlockItem? selectedCylinderSettingsBlock;
-    [ObservableProperty] private string cylinderAlarmTimeSetting = "2.0";
-    [ObservableProperty] private string cylinderHomeDelaySetting = "0.3";
-    [ObservableProperty] private string cylinderWorkDelaySetting = "0.3";
+    [ObservableProperty] private string cylinderAlarmTimeSetting = "20";
+    [ObservableProperty] private string cylinderHomeDelaySetting = "3";
+    [ObservableProperty] private string cylinderWorkDelaySetting = "3";
     [ObservableProperty] private string cylinderCurrentActionTimeDisplay = "--";
     [ObservableProperty] private string cylinderLastActionTimeDisplay = "--";
     [ObservableProperty] private int cylinderActionCount;
@@ -162,6 +172,21 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private string selectedFlowTimeRange = "全部";
     [ObservableProperty] private string selectedFlowStepFilter = "全部";
     [ObservableProperty] private bool showOnlyAbnormalFlow;
+    [ObservableProperty] private double programMonitorTraceWindowMinutes = 5;
+    [ObservableProperty] private bool programMonitorTraceShowLine1 = true;
+    [ObservableProperty] private bool programMonitorTraceShowLine2 = true;
+    [ObservableProperty] private bool programMonitorTraceShowLine3 = true;
+    [ObservableProperty] private string selectedProgramMonitorTraceFlow = "主线1";
+    [ObservableProperty] private bool programMonitorTracePaused;
+    [ObservableProperty] private bool programMonitorTraceReplayMode;
+    [ObservableProperty] private int programMonitorTraceReplayPosition;
+    [ObservableProperty] private int programMonitorTraceReplayMaximum;
+    [ObservableProperty] private string programMonitorTraceReplayText = "模式：实时采样";
+    [ObservableProperty] private string programMonitorTraceLocateTime = string.Empty;
+    [ObservableProperty] private string programMonitorCursorText = "光标：--";
+    [ObservableProperty] private string programMonitorCursorAText = "光标A：--";
+    [ObservableProperty] private string programMonitorCursorBText = "光标B：--";
+    [ObservableProperty] private string programMonitorCursorDeltaText = "Δ：--";
     [ObservableProperty] private string jumpAlarmKeyword = string.Empty;
     [ObservableProperty] private string selectedIoPlcTemplate = "汇川中型PLC";
     [ObservableProperty] private string ioOperationNumber = "OP10";
@@ -201,12 +226,17 @@ public partial class MainViewModel : ObservableObject
         AutoProgramFlowNodes.CollectionChanged += (_, _) => RefreshAutoProgramSummary();
         AlarmHistory.CollectionChanged += (_, _) => RefreshAlarmStatistics();
         CurrentAlarms.CollectionChanged += (_, _) => RefreshAlarmStatistics();
+        FlowSteps.CollectionChanged += FlowSteps_CollectionChanged;
+        TrendSamples.CollectionChanged += (_, _) => RefreshTrendVisuals();
         ManualCylinderBlocksView = CollectionViewSource.GetDefaultView(ManualCylinderBlocks);
         ManualCylinderBlocksView.SortDescriptions.Add(new SortDescription(nameof(ManualCylinderBlockItem.DisplayOrder), ListSortDirection.Ascending));
         ManualCylinderBlocksView.SortDescriptions.Add(new SortDescription(nameof(ManualCylinderBlockItem.CylinderIndex), ListSortDirection.Ascending));
         _subscriptionTimer = new DispatcherTimer();
         _subscriptionTimer.Interval = TimeSpan.FromMilliseconds(RefreshIntervalMs);
         _subscriptionTimer.Tick += async (_, _) => await AutoRefreshTickAsync();
+        _opcUaBrowserRefreshTimer = new DispatcherTimer();
+        _opcUaBrowserRefreshTimer.Interval = TimeSpan.FromMilliseconds(1000);
+        _opcUaBrowserRefreshTimer.Tick += async (_, _) => await AutoRefreshSelectedOpcUaNodeTickAsync();
         _opcUaService.TagValueChanged += OpcUaService_TagValueChanged;
         SeedDemoData();
         SeedDesignerData();
@@ -221,6 +251,7 @@ public partial class MainViewModel : ObservableObject
         SeedTrendSamples();
         RefreshFlowView();
         RefreshFlowIssueSummaries();
+        RebuildProgramMonitorTraceHistory();
         SeedAutoProgramFlow();
         _ = InitializeAsync();
     }
@@ -238,6 +269,7 @@ public partial class MainViewModel : ObservableObject
         {
             await LoadConfigAsync();
             await LoadParametersAsync();
+            await ConnectAsync();
         }
         catch (Exception ex)
         {
@@ -247,6 +279,23 @@ public partial class MainViewModel : ObservableObject
     }
     public int AlarmCount => CurrentAlarms.Count(a => a.Active);
     public string DesignerModeText => IsRuntimeMode ? "运行态" : "设计态";
+
+    private void FlowSteps_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.Action == NotifyCollectionChangedAction.Reset)
+        {
+            RebuildProgramMonitorTraceHistory();
+            RefreshProgramMonitorTrace();
+            return;
+        }
+
+        if (e.NewItems is not null)
+        {
+            AppendProgramMonitorTraceHistory(e.NewItems.OfType<FlowStepRecord>());
+        }
+
+        RefreshProgramMonitorTrace();
+    }
     public bool HasClipboard => _clipboardElement is not null;
     public bool CanEditParameters => CurrentUserRole >= UserRole.Engineer;
     public bool CanAdmin => CurrentUserRole == UserRole.Administrator;
@@ -286,6 +335,23 @@ public partial class MainViewModel : ObservableObject
     public string CylinderDisplayName => string.IsNullOrWhiteSpace(CylinderConfiguredName) ? GetImportedCylinderDisplayName() : CylinderConfiguredName;
     public string CylinderHomeMaskButtonText => CylinderHomeMaskEnabled ? "原点屏蔽：开" : "原点屏蔽：关";
     public string CylinderWorkMaskButtonText => CylinderWorkMaskEnabled ? "动点屏蔽：开" : "动点屏蔽：关";
+    public string SelectedCylinderHomeCommandBinding => SelectedCylinderSettingsBlock?.HomeCommandTagName ?? CylinderHomeCommandTagName;
+    public string SelectedCylinderWorkCommandBinding => SelectedCylinderSettingsBlock?.WorkCommandTagName ?? CylinderWorkCommandTagName;
+    public string SelectedCylinderHomeSensorBinding => SelectedCylinderSettingsBlock?.HomeSensorTagName ?? CylinderHomeSensorTagName;
+    public string SelectedCylinderWorkSensorBinding => SelectedCylinderSettingsBlock?.WorkSensorTagName ?? CylinderWorkSensorTagName;
+    public string SelectedCylinderHomeInterlockBinding => SelectedCylinderSettingsBlock?.HomeInterlockTagName ?? CylinderHomeInterlockTagName;
+    public string SelectedCylinderWorkInterlockBinding => SelectedCylinderSettingsBlock?.WorkInterlockTagName ?? CylinderWorkInterlockTagName;
+    public string SelectedCylinderDisableHomeBinding => GetSelectedCylinderParmTagName("DisableHome");
+    public string SelectedCylinderDisableWorkBinding => GetSelectedCylinderParmTagName("DisableWork");
+    public string SelectedCylinderErrorDelayBinding => GetSelectedCylinderParmTagName("Error_Delay");
+    public string SelectedCylinderHomeDelayBinding => GetSelectedCylinderParmTagName("Home_Delay");
+    public string SelectedCylinderWorkDelayBinding => GetSelectedCylinderParmTagName("Work_Delay");
+    public string SelectedCylinderHomeCommandValue => GetTagValue(SelectedCylinderHomeCommandBinding);
+    public string SelectedCylinderWorkCommandValue => GetTagValue(SelectedCylinderWorkCommandBinding);
+    public string SelectedCylinderHomeSensorValue => GetTagValue(SelectedCylinderHomeSensorBinding);
+    public string SelectedCylinderWorkSensorValue => GetTagValue(SelectedCylinderWorkSensorBinding);
+    public string SelectedCylinderHomeInterlockValue => GetTagValue(SelectedCylinderHomeInterlockBinding);
+    public string SelectedCylinderWorkInterlockValue => GetTagValue(SelectedCylinderWorkInterlockBinding);
     public bool CylinderForwardActive => GetCylinderBool(CylinderWorkSensorTagName, ".Status.InWork", ".DevStatus.Sensor_Work", "Cylinder_FwdLS");
     public bool CylinderBackwardActive => GetCylinderBool(CylinderHomeSensorTagName, ".Status.InHome", ".DevStatus.Sensor_Home", "Cylinder_BwdLS");
     public bool CylinderOutputActive => GetCylinderBool(CylinderWorkCommandTagName, ".DevStatus.Valve_Work", ".Cmd.ManuToWork", "Cylinder_Extend");
@@ -332,6 +398,18 @@ public partial class MainViewModel : ObservableObject
     public string ProductionTrendPath => BuildSparklinePath(new double[] { Math.Max(0, ShiftProductionCount * 0.35), ShiftProductionCount * 0.5, ShiftProductionCount * 0.68, ShiftProductionCount * 0.8, ShiftProductionCount * 0.92, ShiftProductionCount });
     public string OeeTrendPath => BuildSparklinePath(new double[] { Math.Max(0, OeeRate - 9), OeeRate - 5, OeeRate - 3, OeeRate - 1, OeeRate + 1, OeeRate });
     public string AlarmTrendPath => BuildSparklinePath(new double[] { ActiveAlarmCount + 4, ActiveAlarmCount + 3, ActiveAlarmCount + 2, ActiveAlarmCount + 2, ActiveAlarmCount + 1, Math.Max(1, ActiveAlarmCount) });
+    public string ProgramMonitorMainFlowTracePath => BuildTracePath("F1", "主线1");
+    public string ProgramMonitorSubFlow2TracePath => BuildTracePath("F2", "主线2");
+    public string ProgramMonitorSubFlow3TracePath => BuildTracePath("F3", "主线3");
+    public string ProgramMonitorTraceAxisTopLabel => GetTraceAxisLabel(3);
+    public string ProgramMonitorTraceAxisMidHighLabel => GetTraceAxisLabel(2);
+    public string ProgramMonitorTraceAxisMidLowLabel => GetTraceAxisLabel(1);
+    public string ProgramMonitorTraceAxisBottomLabel => "0";
+    public string ProgramMonitorTraceStartLabel => GetTraceStart().ToString("HH:mm:ss");
+    public string ProgramMonitorTraceEndLabel => GetTraceEnd().ToString("HH:mm:ss");
+    public string ProgramMonitorTraceLatestText => BuildMainFlowTraceLatestText();
+    public string ProgramMonitorTraceWindowText => $"窗口：最近 {ProgramMonitorTraceWindowMinutes:F0} 分钟";
+    public bool HasProgramMonitorTraceHistory => _programMonitorTraceHistory.Count > 0;
     public string FlowStepTrendPath => BuildSparklinePath(FlowSteps.Take(6).Select(f => (double)f.StepNo).Reverse().DefaultIfEmpty(0));
     public string FlowIssueTrendPath => BuildSparklinePath(FlowIssueSummaries.Select((x, i) => (double)(i + 1) * 10).DefaultIfEmpty(0));
     public string FlowRankingSummary => BuildFlowRankingSummary();
@@ -490,6 +568,23 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
     partial void OnSelectedFlowTimeRangeChanged(string value) => RefreshFlowView();
     partial void OnSelectedFlowStepFilterChanged(string value) => RefreshFlowView();
     partial void OnShowOnlyAbnormalFlowChanged(bool value) => RefreshFlowView();
+    partial void OnProgramMonitorTraceWindowMinutesChanged(double value) => RefreshProgramMonitorTrace();
+    partial void OnProgramMonitorTraceShowLine1Changed(bool value) => RefreshProgramMonitorTrace();
+    partial void OnProgramMonitorTraceShowLine2Changed(bool value) => RefreshProgramMonitorTrace();
+    partial void OnProgramMonitorTraceShowLine3Changed(bool value) => RefreshProgramMonitorTrace();
+    partial void OnSelectedProgramMonitorTraceFlowChanged(string value) => RefreshProgramMonitorTrace();
+    partial void OnProgramMonitorTraceReplayPositionChanged(int value)
+    {
+        if (!ProgramMonitorTraceReplayMode || _programMonitorTraceHistory.Count == 0)
+        {
+            return;
+        }
+
+        value = Math.Max(0, Math.Min(ProgramMonitorTraceReplayMaximum, value));
+        _programMonitorTraceFollowNow = false;
+        _programMonitorTraceWindowEnd = _programMonitorTraceHistory[value].Time;
+        RefreshProgramMonitorTrace();
+    }
     partial void OnSelectedIoPlcTemplateChanged(string value) => OnPropertyChanged(nameof(IoGenerationHeadline));
     partial void OnIoOperationNumberChanged(string value) => OnPropertyChanged(nameof(IoGenerationHeadline));
     partial void OnAutoProgramNameChanged(string value) => OnPropertyChanged(nameof(AutoProgramHeadline));
@@ -503,6 +598,26 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
     partial void OnCylinderWorkSensorTagNameChanged(string value) => RefreshCylinderBindingProperties();
     partial void OnCylinderHomeInterlockTagNameChanged(string value) => RefreshCylinderBindingProperties();
     partial void OnCylinderWorkInterlockTagNameChanged(string value) => RefreshCylinderBindingProperties();
+    partial void OnSelectedCylinderSettingsBlockChanged(ManualCylinderBlockItem? value)
+    {
+        LoadSelectedCylinderParmSettings();
+        RefreshCylinderBindingProperties();
+    }
+    partial void OnCylinderAlarmTimeSettingChanged(string value)
+    {
+        if (_isLoadingSelectedCylinderParmSettings) return;
+        _ = WriteSelectedCylinderNumericParmAsync(SelectedCylinderErrorDelayBinding, value, "已更新气缸报警时间参数");
+    }
+    partial void OnCylinderHomeDelaySettingChanged(string value)
+    {
+        if (_isLoadingSelectedCylinderParmSettings) return;
+        _ = WriteSelectedCylinderNumericParmAsync(SelectedCylinderHomeDelayBinding, value, "已更新气缸原点延时参数");
+    }
+    partial void OnCylinderWorkDelaySettingChanged(string value)
+    {
+        if (_isLoadingSelectedCylinderParmSettings) return;
+        _ = WriteSelectedCylinderNumericParmAsync(SelectedCylinderWorkDelayBinding, value, "已更新气缸动点延时参数");
+    }
     partial void OnSelectedDesignerElementChanged(DesignerElement? value)
     {
         if (_designerSelectionSubscription is not null)
@@ -547,6 +662,148 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
         OnPropertyChanged(nameof(CylinderHomeInterlockText));
         OnPropertyChanged(nameof(CylinderMoveInterlockText));
         OnPropertyChanged(nameof(CylinderInterlockHint));
+        OnPropertyChanged(nameof(SelectedCylinderHomeCommandBinding));
+        OnPropertyChanged(nameof(SelectedCylinderWorkCommandBinding));
+        OnPropertyChanged(nameof(SelectedCylinderHomeSensorBinding));
+        OnPropertyChanged(nameof(SelectedCylinderWorkSensorBinding));
+        OnPropertyChanged(nameof(SelectedCylinderHomeInterlockBinding));
+        OnPropertyChanged(nameof(SelectedCylinderWorkInterlockBinding));
+        OnPropertyChanged(nameof(SelectedCylinderDisableHomeBinding));
+        OnPropertyChanged(nameof(SelectedCylinderDisableWorkBinding));
+        OnPropertyChanged(nameof(SelectedCylinderErrorDelayBinding));
+        OnPropertyChanged(nameof(SelectedCylinderHomeDelayBinding));
+        OnPropertyChanged(nameof(SelectedCylinderWorkDelayBinding));
+        OnPropertyChanged(nameof(SelectedCylinderHomeCommandValue));
+        OnPropertyChanged(nameof(SelectedCylinderWorkCommandValue));
+        OnPropertyChanged(nameof(SelectedCylinderHomeSensorValue));
+        OnPropertyChanged(nameof(SelectedCylinderWorkSensorValue));
+        OnPropertyChanged(nameof(SelectedCylinderHomeInterlockValue));
+        OnPropertyChanged(nameof(SelectedCylinderWorkInterlockValue));
+    }
+
+    private void LoadSelectedCylinderParmSettings()
+    {
+        _isLoadingSelectedCylinderParmSettings = true;
+        try
+        {
+            CylinderHomeMaskEnabled = GetBoolTag(SelectedCylinderDisableHomeBinding);
+            CylinderWorkMaskEnabled = GetBoolTag(SelectedCylinderDisableWorkBinding);
+            CylinderAlarmTimeSetting = GetTagValueOrFallback(SelectedCylinderErrorDelayBinding, "20");
+            CylinderHomeDelaySetting = GetTagValueOrFallback(SelectedCylinderHomeDelayBinding, "3");
+            CylinderWorkDelaySetting = GetTagValueOrFallback(SelectedCylinderWorkDelayBinding, "3");
+        }
+        finally
+        {
+            _isLoadingSelectedCylinderParmSettings = false;
+        }
+    }
+
+    private string GetSelectedCylinderParmTagName(string parmFieldName)
+    {
+        if (SelectedCylinderSettingsBlock is null)
+        {
+            return string.Empty;
+        }
+
+        var root = ResolveCylinderBlockRoot(SelectedCylinderSettingsBlock);
+        return string.IsNullOrWhiteSpace(root) ? string.Empty : $"{root}.Parm.{parmFieldName}";
+    }
+
+    private string GetTagValueOrFallback(string tagNameOrNodeId, string fallback)
+    {
+        var value = GetTagValue(tagNameOrNodeId);
+        return string.IsNullOrWhiteSpace(value) || value == "--" || value.StartsWith("ERR:", StringComparison.OrdinalIgnoreCase)
+            ? fallback
+            : value;
+    }
+
+    private async Task WriteSelectedCylinderBoolParmAsync(string tagNameOrNodeId, bool value, string successMessage)
+    {
+        if (string.IsNullOrWhiteSpace(tagNameOrNodeId))
+        {
+            return;
+        }
+
+        var tag = EnsureWritableCylinderParmTag(tagNameOrNodeId, "Boolean");
+        try
+        {
+            if (_opcUaService.IsConnected)
+            {
+                await _opcUaService.WriteTagAsync(tag, value);
+            }
+
+            tag.CurrentValue = value.ToString();
+            SystemMessage = successMessage;
+        }
+        catch (Exception ex)
+        {
+            SystemMessage = $"气缸参数写入失败：{ex.Message}";
+            AddLog("气缸参数", SystemMessage, "Error");
+        }
+
+        RefreshCylinderBindingProperties();
+    }
+
+    private async Task WriteSelectedCylinderNumericParmAsync(string tagNameOrNodeId, string textValue, string successMessage)
+    {
+        if (_isLoadingSelectedCylinderParmSettings || string.IsNullOrWhiteSpace(tagNameOrNodeId))
+        {
+            return;
+        }
+
+        if (!ushort.TryParse(textValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out var numericValue))
+        {
+            if (!string.IsNullOrWhiteSpace(textValue))
+            {
+                SystemMessage = "气缸参数格式错误，请输入 0-65535 的整数。";
+            }
+            return;
+        }
+
+        var tag = EnsureWritableCylinderParmTag(tagNameOrNodeId, "UInt16");
+        try
+        {
+            if (_opcUaService.IsConnected)
+            {
+                await _opcUaService.WriteTagAsync(tag, numericValue);
+            }
+
+            tag.CurrentValue = numericValue.ToString(CultureInfo.InvariantCulture);
+            SystemMessage = successMessage;
+        }
+        catch (Exception ex)
+        {
+            SystemMessage = $"气缸参数写入失败：{ex.Message}";
+            AddLog("气缸参数", SystemMessage, "Error");
+        }
+
+        RefreshCylinderBindingProperties();
+    }
+
+    private TagItem EnsureWritableCylinderParmTag(string tagNameOrNodeId, string dataType)
+    {
+        var existing = FindTagByNameOrNodeId(tagNameOrNodeId);
+        if (existing is not null)
+        {
+            existing.IsWritable = true;
+            return existing;
+        }
+
+        var tag = new TagItem
+        {
+            Name = tagNameOrNodeId.Replace("Application.", string.Empty, StringComparison.OrdinalIgnoreCase),
+            NodeId = tagNameOrNodeId,
+            DataType = dataType,
+            Category = "Cylinder",
+            Group = "Parm",
+            Direction = "Output",
+            CurrentValue = "0",
+            Description = "气缸参数页自动补齐的 Parm 变量",
+            IsWritable = true
+        };
+
+        Tags.Add(tag);
+        return tag;
     }
     partial void OnIoSaveIntervalMinutesChanged(int value)
     {
@@ -625,6 +882,13 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
     {
         try
         {
+            if (_opcUaService.IsConnected)
+            {
+                SystemMessage = $"已连接：{Connection.GetEndpointUrl()}";
+                OnPropertyChanged(nameof(CommunicationStatus));
+                return;
+            }
+
             if (!string.Equals(Connection.Protocol, "OPC UA", StringComparison.OrdinalIgnoreCase))
             {
                 SystemMessage = $"当前版本仅支持 OPC UA 通讯，暂不支持 {Connection.Protocol}";
@@ -652,6 +916,7 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
     private async Task DisconnectAsync()
     {
         _subscriptionTimer.Stop();
+        _opcUaBrowserRefreshTimer.Stop();
         await _opcUaService.DisconnectAsync();
         OpcUaBrowserNodes.Clear();
         SelectedOpcUaBrowseNode = null;
@@ -659,7 +924,7 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
         SelectedOpcUaNodeStatus = "未读取";
         SelectedOpcUaNodeTimestamp = "--";
         OpcUaBrowserStatus = "连接 OPC UA 后，可在这里浏览服务器节点。";
-        SystemMessage = "宸叉柇寮€ OPC UA 杩炴帴";
+        SystemMessage = "已断开 OPC UA 连接";
         OnPropertyChanged(nameof(CommunicationStatus));
         AddLog("通讯", SystemMessage, "Info");
     }
@@ -753,6 +1018,11 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
     [RelayCommand]
     private async Task RefreshSelectedOpcUaNodeAsync()
     {
+        if (_isRefreshingSelectedOpcUaNode)
+        {
+            return;
+        }
+
         if (SelectedOpcUaBrowseNode is null || SelectedOpcUaBrowseNode.IsPlaceholder)
         {
             return;
@@ -770,6 +1040,7 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
 
         try
         {
+            _isRefreshingSelectedOpcUaNode = true;
             var result = await _opcUaService.ReadNodeAsync(SelectedOpcUaBrowseNode.NodeId);
             SelectedOpcUaBrowseNode.DataType = result.DataType;
             SelectedOpcUaBrowseNode.Value = result.Value;
@@ -785,6 +1056,10 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
             SelectedOpcUaNodeTimestamp = "--";
             OpcUaBrowserStatus = SelectedOpcUaNodeStatus;
             AddLog("OPC UA", OpcUaBrowserStatus, "Error");
+        }
+        finally
+        {
+            _isRefreshingSelectedOpcUaNode = false;
         }
     }
 
@@ -1137,14 +1412,14 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
     private void ToggleCylinderHomeMask()
     {
         CylinderHomeMaskEnabled = !CylinderHomeMaskEnabled;
-        SystemMessage = CylinderHomeMaskEnabled ? "已开启气缸原点屏蔽" : "已关闭气缸原点屏蔽";
+        _ = WriteSelectedCylinderBoolParmAsync(SelectedCylinderDisableHomeBinding, CylinderHomeMaskEnabled, CylinderHomeMaskEnabled ? "已开启气缸原点屏蔽" : "已关闭气缸原点屏蔽");
     }
 
     [RelayCommand]
     private void ToggleCylinderWorkMask()
     {
         CylinderWorkMaskEnabled = !CylinderWorkMaskEnabled;
-        SystemMessage = CylinderWorkMaskEnabled ? "已开启气缸动点屏蔽" : "已关闭气缸动点屏蔽";
+        _ = WriteSelectedCylinderBoolParmAsync(SelectedCylinderDisableWorkBinding, CylinderWorkMaskEnabled, CylinderWorkMaskEnabled ? "已开启气缸动点屏蔽" : "已关闭气缸动点屏蔽");
     }
 
     [RelayCommand]
@@ -1415,22 +1690,7 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
     [RelayCommand]
     private async Task SaveConfigAsync()
     {
-        var path = Path.Combine(GetProjectRoot(), "config", "appsettings.json");
-        var config = new AppConfig
-        {
-            Connection = Connection,
-            Tags = Tags.ToList(),
-            EventBindings = EventBindings.ToList(),
-            IoGeneration = new IoGenerationSettings
-            {
-                PlcType = SelectedIoPlcTemplate,
-                OperationNumber = IoOperationNumber
-            },
-            IoTableRows = IoTableRows.ToList()
-        };
-        await _configurationService.SaveAsync(path, config);
-        SystemMessage = $"配置已保存：{path}";
-        AddLog("配置", SystemMessage, "Info");
+        await PersistConfigAsync(updateStatus: true);
     }
 
     [RelayCommand]
@@ -1450,6 +1710,7 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
         IoOperationNumber = string.IsNullOrWhiteSpace(config.IoGeneration?.OperationNumber) ? "OP10" : config.IoGeneration.OperationNumber;
         IoTableRows.Clear();
         foreach (var row in config.IoTableRows ?? new List<IoTableRow>()) IoTableRows.Add(row);
+        RestoreManualCylinderBlocks(config.ManualCylinderBlocks);
         RefreshIoGenerationSummary();
         OnPropertyChanged(nameof(TagCount));
         RefreshMonitorView();
@@ -1720,6 +1981,7 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
             SelectedGeneratedIoProgram = GeneratedIoPrograms.FirstOrDefault();
             GeneratedIoOutputDirectory = result.OutputDirectory;
             RebuildManualCylinderBlocksFromIo();
+            await PersistConfigAsync(updateStatus: false);
             RefreshIoGenerationSummary(result);
             SystemMessage = $"IO 程序已生成：{result.OutputDirectory}";
             AddLog("IO 生成", $"{SystemMessage}（输入 {result.InputCount} / 输出 {result.OutputCount}）", "Info");
@@ -2333,8 +2595,8 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
                 }
                 stopwatch.Stop();
                 var configuredDelay = extend ? CylinderWorkDelaySetting : CylinderHomeDelaySetting;
-                var durationText = double.TryParse(configuredDelay, NumberStyles.Float, CultureInfo.InvariantCulture, out var configuredSeconds)
-                    ? $"{Math.Max(configuredSeconds, stopwatch.Elapsed.TotalSeconds):0.000} s"
+                var durationText = double.TryParse(configuredDelay, NumberStyles.Float, CultureInfo.InvariantCulture, out var configuredDelayTicks)
+                    ? $"{Math.Max(configuredDelayTicks * 0.1, stopwatch.Elapsed.TotalSeconds):0.000} s"
                     : $"{stopwatch.Elapsed.TotalSeconds:0.000} s";
                 CylinderCurrentActionTimeDisplay = durationText;
                 CylinderLastActionTimeDisplay = durationText;
@@ -2416,27 +2678,56 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
 
     private async Task AutoRefreshTickAsync()
     {
-        if (!AutoRefreshEnabled || !_opcUaService.IsConnected || !IsRuntimeMode || UseOpcSubscription) return;
+        if (!AutoRefreshEnabled || !_opcUaService.IsConnected || UseOpcSubscription) return;
         await RefreshTagsAsync();
     }
 
     private async void UpdateAutoRefreshState()
     {
-        _subscriptionTimer.Stop();
-        await _opcUaService.UnsubscribeAllAsync();
-        if (!_opcUaService.IsConnected || !IsRuntimeMode || !AutoRefreshEnabled) return;
-        if (UseOpcSubscription) await _opcUaService.SubscribeTagsAsync(Tags, RefreshIntervalMs);
-        else { _subscriptionTimer.Interval = TimeSpan.FromMilliseconds(RefreshIntervalMs); _subscriptionTimer.Start(); }
+        try
+        {
+            _subscriptionTimer.Stop();
+            _opcUaBrowserRefreshTimer.Stop();
+            await _opcUaService.UnsubscribeAllAsync();
+            if (!_opcUaService.IsConnected || !AutoRefreshEnabled) return;
+            if (UseOpcSubscription)
+            {
+                await _opcUaService.SubscribeTagsAsync(Tags, RefreshIntervalMs);
+            }
+            else
+            {
+                _subscriptionTimer.Interval = TimeSpan.FromMilliseconds(RefreshIntervalMs);
+                _subscriptionTimer.Start();
+            }
+
+            _opcUaBrowserRefreshTimer.Start();
+        }
+        catch (Exception ex)
+        {
+            SystemMessage = $"自动刷新初始化失败：{ex.Message}";
+            AddLog("通讯", SystemMessage, "Error");
+        }
     }
 
-    private void OpcUaService_TagValueChanged(string tagName, string value)
+    private async Task AutoRefreshSelectedOpcUaNodeTickAsync()
     {
-        var tag = Tags.FirstOrDefault(t => t.Name.Equals(tagName, StringComparison.OrdinalIgnoreCase));
+        if (!AutoRefreshEnabled || !_opcUaService.IsConnected || SelectedOpcUaBrowseNode is null || SelectedOpcUaBrowseNode.IsPlaceholder)
+        {
+            return;
+        }
+
+        await RefreshSelectedOpcUaNodeAsync();
+    }
+
+    private void OpcUaService_TagValueChanged(string tagNameOrNodeId, string value)
+    {
+        var tag = FindTagByNameOrNodeId(tagNameOrNodeId);
         if (tag is null) return;
         tag.CurrentValue = value;
         EvaluateTagState(tag);
         EvaluateEvents(tag);
         UpdateRuntimeVisuals();
+        RefreshCylinderBindingProperties();
         RefreshMonitorView();
         RefreshAlarmStatistics();
     }
@@ -2638,6 +2929,7 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
     private void UpdateRuntimeVisuals()
     {
         RefreshManualCylinderBlockStates();
+        RefreshCylinderBindingProperties();
         foreach (var element in DesignerElements)
         {
             var tag = Tags.FirstOrDefault(t => t.Name.Equals(element.TagBinding, StringComparison.OrdinalIgnoreCase));
@@ -3543,6 +3835,666 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
         return "M " + string.Join(" L ", coordinates);
     }
 
+    private string BuildTrendSeriesPath(string category)
+    {
+        var samples = TrendSamples
+            .Where(x => x.Category.Equals(category, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(x => x.Time)
+            .ToList();
+
+        if (samples.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var minTime = samples.Min(x => x.Time);
+        var maxTime = samples.Max(x => x.Time);
+        if (minTime == maxTime)
+        {
+            maxTime = minTime.AddMinutes(1);
+        }
+
+        var minValue = samples.Min(x => x.Value);
+        var maxValue = samples.Max(x => x.Value);
+        var valueRange = Math.Max(1.0, maxValue - minValue);
+        var timeRange = Math.Max(1.0, (maxTime - minTime).TotalSeconds);
+
+        var points = samples.Select(sample =>
+        {
+            var x = ((sample.Time - minTime).TotalSeconds / timeRange) * 100.0;
+            var y = 92.0 - (((sample.Value - minValue) / valueRange) * 76.0);
+            return $"{x.ToString("F1", CultureInfo.InvariantCulture)},{y.ToString("F1", CultureInfo.InvariantCulture)}";
+        });
+
+        return "M " + string.Join(" L ", points);
+    }
+
+    private DateTime GetTrendWindowStart()
+    {
+        return TrendSamples.Count == 0 ? DateTime.Now.AddMinutes(-5) : TrendSamples.Min(x => x.Time);
+    }
+
+    private DateTime GetTrendWindowEnd()
+    {
+        return TrendSamples.Count == 0 ? DateTime.Now : TrendSamples.Max(x => x.Time);
+    }
+
+    private string BuildTrendLatestText(string category, string label)
+    {
+        var latest = TrendSamples
+            .Where(x => x.Category.Equals(category, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(x => x.Time)
+            .FirstOrDefault();
+
+        if (latest is null)
+        {
+            return $"{label}：--";
+        }
+
+        return category.Equals("OEE", StringComparison.OrdinalIgnoreCase)
+            ? $"{label}：{latest.Value:F1}%"
+            : $"{label}：{latest.Value:F0}";
+    }
+
+    private void RefreshTrendVisuals()
+    {
+        OnPropertyChanged(nameof(ProductionTrendPath));
+        OnPropertyChanged(nameof(OeeTrendPath));
+        OnPropertyChanged(nameof(AlarmTrendPath));
+        OnPropertyChanged(nameof(TimeAxisSummary));
+    }
+
+    private void RebuildProgramMonitorTraceHistory()
+    {
+        _programMonitorTraceHistory.Clear();
+        AppendProgramMonitorTraceHistory(FlowSteps);
+    }
+
+    private void AppendProgramMonitorTraceHistory(IEnumerable<FlowStepRecord> source)
+    {
+        foreach (var item in source
+                     .Where(x => x.FlowId.Equals("F1", StringComparison.OrdinalIgnoreCase)
+                              || x.FlowName.Equals("主线1", StringComparison.OrdinalIgnoreCase))
+                     .OrderBy(x => x.Time))
+        {
+            var exists = _programMonitorTraceHistory.Any(x =>
+                x.Time == item.Time &&
+                x.StepNo == item.StepNo &&
+                string.Equals(x.FlowId, item.FlowId, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(x.Comment, item.Comment, StringComparison.Ordinal));
+
+            if (exists)
+            {
+                continue;
+            }
+
+            _programMonitorTraceHistory.Add(CloneFlowStepRecord(item));
+        }
+
+        _programMonitorTraceHistory.Sort((a, b) => a.Time.CompareTo(b.Time));
+        ProgramMonitorTraceReplayMaximum = Math.Max(0, _programMonitorTraceHistory.Count - 1);
+        OnPropertyChanged(nameof(HasProgramMonitorTraceHistory));
+
+        if (!ProgramMonitorTraceReplayMode && !ProgramMonitorTracePaused && _programMonitorTraceHistory.Count > 0)
+        {
+            ProgramMonitorTraceReplayPosition = ProgramMonitorTraceReplayMaximum;
+            _programMonitorTraceWindowEnd = _programMonitorTraceHistory[^1].Time;
+        }
+    }
+
+    private static FlowStepRecord CloneFlowStepRecord(FlowStepRecord source) => new()
+    {
+        FlowId = source.FlowId,
+        FlowName = source.FlowName,
+        Time = source.Time,
+        StartTime = source.StartTime,
+        EndTime = source.EndTime,
+        DurationSeconds = source.DurationSeconds,
+        StepNo = source.StepNo,
+        Icon = source.Icon,
+        Title = source.Title,
+        Comment = source.Comment,
+        Result = source.Result,
+        RelatedAlarm = source.RelatedAlarm,
+        IsAbnormal = source.IsAbnormal,
+        ShiftKey = source.ShiftKey,
+        ArchiveDate = source.ArchiveDate,
+        IsHighlighted = source.IsHighlighted
+    };
+
+    private IEnumerable<FlowStepRecord> GetTraceSource()
+    {
+        return _programMonitorTraceHistory.Count > 0 ? _programMonitorTraceHistory : FlowSteps.ToList();
+    }
+
+    private IEnumerable<FlowStepRecord> GetTraceWindowSamples()
+    {
+        var end = _programMonitorTraceFollowNow ? DateTime.Now : _programMonitorTraceWindowEnd;
+        var start = end.AddMinutes(-Math.Max(1, ProgramMonitorTraceWindowMinutes));
+        return GetTraceSource()
+            .Where(x => x.Time >= start && x.Time <= end)
+            .OrderBy(x => x.Time);
+    }
+
+    private IEnumerable<FlowStepRecord> GetTraceSamples(string flowId, string flowName)
+    {
+        return GetTraceWindowSamples()
+            .Where(x => x.FlowId.Equals(flowId, StringComparison.OrdinalIgnoreCase) || x.FlowName.Equals(flowName, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(x => x.Time);
+    }
+
+    private IEnumerable<FlowStepRecord> GetSelectedTraceSamples()
+    {
+        return SelectedProgramMonitorTraceFlow switch
+        {
+            "主线2" => GetTraceSamples("F2", "主线2"),
+            "主线3" => GetTraceSamples("F3", "主线3"),
+            _ => GetTraceSamples("F1", "主线1")
+        };
+    }
+
+    private double GetTraceAxisMaxStep()
+    {
+        var maxStep = 0;
+        if (ProgramMonitorTraceShowLine1)
+        {
+            maxStep = Math.Max(maxStep, GetTraceSamples("F1", "主线1").Select(x => x.StepNo).DefaultIfEmpty(0).Max());
+        }
+
+        if (ProgramMonitorTraceShowLine2)
+        {
+            maxStep = Math.Max(maxStep, GetTraceSamples("F2", "主线2").Select(x => x.StepNo).DefaultIfEmpty(0).Max());
+        }
+
+        if (ProgramMonitorTraceShowLine3)
+        {
+            maxStep = Math.Max(maxStep, GetTraceSamples("F3", "主线3").Select(x => x.StepNo).DefaultIfEmpty(0).Max());
+        }
+
+        maxStep = Math.Max(10, maxStep);
+        return Math.Ceiling(maxStep / 10.0) * 10.0;
+    }
+
+    private string GetTraceAxisLabel(int segment)
+    {
+        var maxStep = GetTraceAxisMaxStep();
+        var value = segment switch
+        {
+            3 => maxStep,
+            2 => maxStep * 2.0 / 3.0,
+            1 => maxStep / 3.0,
+            _ => 0
+        };
+        return Math.Round(value, 0, MidpointRounding.AwayFromZero).ToString(CultureInfo.InvariantCulture);
+    }
+
+    private string BuildTracePath(string flowId, string flowName)
+    {
+        var samples = GetTraceSamples(flowId, flowName).ToList();
+        if (samples.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var start = GetTraceStart();
+        var end = GetTraceEnd();
+        if (start == end)
+        {
+            end = start.AddSeconds(1);
+        }
+
+        const double minStep = 0;
+        var maxStep = GetTraceAxisMaxStep();
+        var timeRange = Math.Max(1.0, (end - start).TotalSeconds);
+        var points = samples.Select(sample =>
+        {
+            var x = ((sample.Time - start).TotalSeconds / timeRange) * 100.0;
+            var y = 92.0 - (((sample.StepNo - minStep) / (maxStep - minStep)) * 76.0);
+            return $"{x.ToString("F1", CultureInfo.InvariantCulture)},{y.ToString("F1", CultureInfo.InvariantCulture)}";
+        });
+
+        return "M " + string.Join(" L ", points);
+    }
+
+    private DateTime GetTraceStart()
+    {
+        var samples = GetTraceWindowSamples().ToList();
+        return samples.Count == 0 ? DateTime.Now.AddMinutes(-Math.Max(1, ProgramMonitorTraceWindowMinutes)) : samples.Min(x => x.Time);
+    }
+
+    private DateTime GetTraceEnd()
+    {
+        var samples = GetTraceWindowSamples().ToList();
+        return samples.Count == 0 ? DateTime.Now : samples.Max(x => x.Time);
+    }
+
+    private string BuildMainFlowTraceLatestText()
+    {
+        var parts = new List<string> { ProgramMonitorTraceReplayText };
+
+        if (ProgramMonitorTraceShowLine1)
+        {
+            var latest1 = GetTraceSamples("F1", "主线1").LastOrDefault();
+            parts.Add(latest1 is null ? "主线1：--" : $"主线1 STEP {latest1.StepNo:000}");
+        }
+
+        if (ProgramMonitorTraceShowLine2)
+        {
+            var latest2 = GetTraceSamples("F2", "主线2").LastOrDefault();
+            parts.Add(latest2 is null ? "主线2：--" : $"主线2 STEP {latest2.StepNo:000}");
+        }
+
+        if (ProgramMonitorTraceShowLine3)
+        {
+            var latest3 = GetTraceSamples("F3", "主线3").LastOrDefault();
+            parts.Add(latest3 is null ? "主线3：--" : $"主线3 STEP {latest3.StepNo:000}");
+        }
+
+        return string.Join(" / ", parts);
+    }
+
+    private void RefreshProgramMonitorTrace()
+    {
+        OnPropertyChanged(nameof(ProgramMonitorMainFlowTracePath));
+        OnPropertyChanged(nameof(ProgramMonitorSubFlow2TracePath));
+        OnPropertyChanged(nameof(ProgramMonitorSubFlow3TracePath));
+        OnPropertyChanged(nameof(ProgramMonitorTraceAxisTopLabel));
+        OnPropertyChanged(nameof(ProgramMonitorTraceAxisMidHighLabel));
+        OnPropertyChanged(nameof(ProgramMonitorTraceAxisMidLowLabel));
+        OnPropertyChanged(nameof(ProgramMonitorTraceStartLabel));
+        OnPropertyChanged(nameof(ProgramMonitorTraceEndLabel));
+        OnPropertyChanged(nameof(ProgramMonitorTraceLatestText));
+        OnPropertyChanged(nameof(ProgramMonitorTraceWindowText));
+        RefreshProgramMonitorCursorTexts();
+    }
+
+    public void UpdateProgramMonitorCursor(double normalizedPosition)
+    {
+        var sample = ResolveProgramMonitorSample(normalizedPosition);
+        if (sample is null)
+        {
+            ProgramMonitorCursorText = "光标：--";
+            return;
+        }
+
+        ProgramMonitorCursorText = $"光标：{sample.Time:HH:mm:ss} / {sample.FlowName} / STEP {sample.StepNo:000} / {sample.Comment}";
+    }
+
+    public void SetProgramMonitorCursorA(double normalizedPosition)
+    {
+        _programMonitorCursorASample = ResolveProgramMonitorSample(normalizedPosition);
+        RefreshProgramMonitorCursorTexts();
+    }
+
+    public void SetProgramMonitorCursorB(double normalizedPosition)
+    {
+        _programMonitorCursorBSample = ResolveProgramMonitorSample(normalizedPosition);
+        RefreshProgramMonitorCursorTexts();
+    }
+
+    public void ZoomProgramMonitorTrace(double delta)
+    {
+        var next = ProgramMonitorTraceWindowMinutes + (delta > 0 ? -1 : 1);
+        ProgramMonitorTraceWindowMinutes = Math.Max(1, Math.Min(30, next));
+    }
+
+    public void ZoomProgramMonitorTraceRange(double startNormalized, double endNormalized)
+    {
+        var samples = GetSelectedTraceSamples().ToList();
+        if (samples.Count < 2)
+        {
+            return;
+        }
+
+        var startSample = ResolveProgramMonitorSample(startNormalized);
+        var endSample = ResolveProgramMonitorSample(endNormalized);
+        if (startSample is null || endSample is null)
+        {
+            return;
+        }
+
+        if (endSample.Time < startSample.Time)
+        {
+            (startSample, endSample) = (endSample, startSample);
+        }
+
+        var rangeMinutes = Math.Max(1, Math.Ceiling((endSample.Time - startSample.Time).TotalMinutes));
+        _programMonitorTraceFollowNow = false;
+        ProgramMonitorTracePaused = true;
+        ProgramMonitorTraceReplayMode = false;
+        ProgramMonitorTraceReplayText = "模式：暂停采样";
+        _programMonitorTraceWindowEnd = endSample.Time;
+        ProgramMonitorTraceWindowMinutes = rangeMinutes;
+        RefreshProgramMonitorTrace();
+    }
+
+    public void ResetProgramMonitorTraceZoom()
+    {
+        _programMonitorTraceFollowNow = true;
+        ProgramMonitorTracePaused = false;
+        ProgramMonitorTraceReplayMode = false;
+        ProgramMonitorTraceReplayText = "模式：实时采样";
+        _programMonitorTraceWindowEnd = DateTime.Now;
+        ProgramMonitorTraceWindowMinutes = 5;
+        ProgramMonitorTraceReplayPosition = ProgramMonitorTraceReplayMaximum;
+        RefreshProgramMonitorTrace();
+    }
+
+    [RelayCommand]
+    private void PauseProgramMonitorTrace()
+    {
+        ProgramMonitorTracePaused = true;
+        ProgramMonitorTraceReplayMode = false;
+        ProgramMonitorTraceReplayText = "模式：暂停采样";
+        _programMonitorTraceFollowNow = false;
+        _programMonitorTraceWindowEnd = (_programMonitorTraceHistory.LastOrDefault() ?? GetTraceWindowSamples().LastOrDefault())?.Time ?? DateTime.Now;
+        RefreshProgramMonitorTrace();
+    }
+
+    [RelayCommand]
+    private void ResumeProgramMonitorTrace()
+    {
+        ProgramMonitorTracePaused = false;
+        ProgramMonitorTraceReplayMode = false;
+        ProgramMonitorTraceReplayText = "模式：实时采样";
+        _programMonitorTraceFollowNow = true;
+        _programMonitorTraceWindowEnd = DateTime.Now;
+        ProgramMonitorTraceReplayPosition = ProgramMonitorTraceReplayMaximum;
+        RefreshProgramMonitorTrace();
+    }
+
+    [RelayCommand]
+    private void ReturnProgramMonitorTraceToRealtime()
+    {
+        ResumeProgramMonitorTrace();
+    }
+
+    [RelayCommand]
+    private void EnterProgramMonitorTraceReplay()
+    {
+        if (_programMonitorTraceHistory.Count == 0)
+        {
+            return;
+        }
+
+        ProgramMonitorTracePaused = true;
+        ProgramMonitorTraceReplayMode = true;
+        ProgramMonitorTraceReplayText = "模式：历史回放";
+        _programMonitorTraceFollowNow = false;
+        ProgramMonitorTraceReplayPosition = Math.Max(0, Math.Min(ProgramMonitorTraceReplayMaximum, ProgramMonitorTraceReplayPosition));
+        _programMonitorTraceWindowEnd = _programMonitorTraceHistory[ProgramMonitorTraceReplayPosition].Time;
+        RefreshProgramMonitorTrace();
+    }
+
+    private FlowStepRecord? ResolveProgramMonitorSample(double normalizedPosition)
+    {
+        var samples = GetSelectedTraceSamples().ToList();
+        if (samples.Count == 0)
+        {
+            return null;
+        }
+
+        normalizedPosition = Math.Clamp(normalizedPosition, 0, 1);
+        var index = (int)Math.Round((samples.Count - 1) * normalizedPosition, MidpointRounding.AwayFromZero);
+        index = Math.Max(0, Math.Min(samples.Count - 1, index));
+        return samples[index];
+    }
+
+    private void RefreshProgramMonitorCursorTexts()
+    {
+        ProgramMonitorCursorAText = _programMonitorCursorASample is null
+            ? "光标A：--"
+            : $"光标A：{_programMonitorCursorASample.Time:HH:mm:ss} / STEP {_programMonitorCursorASample.StepNo:000}";
+
+        ProgramMonitorCursorBText = _programMonitorCursorBSample is null
+            ? "光标B：--"
+            : $"光标B：{_programMonitorCursorBSample.Time:HH:mm:ss} / STEP {_programMonitorCursorBSample.StepNo:000}";
+
+        if (_programMonitorCursorASample is null || _programMonitorCursorBSample is null)
+        {
+            ProgramMonitorCursorDeltaText = "Δ：--";
+            return;
+        }
+
+        var deltaTime = (_programMonitorCursorBSample.Time - _programMonitorCursorASample.Time).Duration();
+        var deltaStep = Math.Abs(_programMonitorCursorBSample.StepNo - _programMonitorCursorASample.StepNo);
+        var sameFlow = string.Equals(_programMonitorCursorASample.FlowId, _programMonitorCursorBSample.FlowId, StringComparison.OrdinalIgnoreCase);
+        ProgramMonitorCursorDeltaText = sameFlow
+            ? $"Δ：{deltaTime.TotalSeconds:F1}s / {deltaStep} step"
+            : $"Δ：{deltaTime.TotalSeconds:F1}s / 跨流程";
+    }
+
+    [RelayCommand]
+    private void LocateProgramMonitorTraceTime()
+    {
+        if (_programMonitorTraceHistory.Count == 0 || string.IsNullOrWhiteSpace(ProgramMonitorTraceLocateTime))
+        {
+            return;
+        }
+
+        DateTime targetTime;
+        var text = ProgramMonitorTraceLocateTime.Trim();
+        if (!DateTime.TryParse(text, out targetTime))
+        {
+            if (TimeSpan.TryParse(text, out var timeOfDay))
+            {
+                var baseDate = _programMonitorTraceHistory.Last().Time.Date;
+                targetTime = baseDate.Add(timeOfDay);
+            }
+            else
+            {
+                SystemMessage = $"无法识别定位时间：{ProgramMonitorTraceLocateTime}";
+                return;
+            }
+        }
+
+        var nearest = _programMonitorTraceHistory
+            .OrderBy(x => Math.Abs((x.Time - targetTime).Ticks))
+            .FirstOrDefault();
+        if (nearest is null)
+        {
+            return;
+        }
+
+        ProgramMonitorTracePaused = true;
+        ProgramMonitorTraceReplayMode = true;
+        ProgramMonitorTraceReplayText = "模式：历史回放";
+        _programMonitorTraceFollowNow = false;
+        _programMonitorTraceWindowEnd = nearest.Time;
+        var index = _programMonitorTraceHistory.FindIndex(x =>
+            x.Time == nearest.Time &&
+            x.StepNo == nearest.StepNo &&
+            string.Equals(x.FlowId, nearest.FlowId, StringComparison.OrdinalIgnoreCase));
+        ProgramMonitorTraceReplayPosition = Math.Max(0, index);
+        RefreshProgramMonitorTrace();
+        ProgramMonitorCursorText = $"定位：{nearest.Time:HH:mm:ss} / {nearest.FlowName} / STEP {nearest.StepNo:000} / {nearest.Comment}";
+    }
+
+    [RelayCommand]
+    private async Task ExportProgramMonitorTraceCsvAsync()
+    {
+        var exportDir = Path.Combine(GetProjectRoot(), "Generated", "Trace");
+        Directory.CreateDirectory(exportDir);
+        var filePath = Path.Combine(exportDir, $"ProgramTrace_{DateTime.Now:yyyyMMdd_HHmmss}.csv");
+
+        var rows = GetTraceWindowSamples()
+            .Where(x =>
+                (ProgramMonitorTraceShowLine1 && (x.FlowId.Equals("F1", StringComparison.OrdinalIgnoreCase) || x.FlowName.Equals("主线1", StringComparison.OrdinalIgnoreCase))) ||
+                (ProgramMonitorTraceShowLine2 && (x.FlowId.Equals("F2", StringComparison.OrdinalIgnoreCase) || x.FlowName.Equals("主线2", StringComparison.OrdinalIgnoreCase))) ||
+                (ProgramMonitorTraceShowLine3 && (x.FlowId.Equals("F3", StringComparison.OrdinalIgnoreCase) || x.FlowName.Equals("主线3", StringComparison.OrdinalIgnoreCase))))
+            .OrderBy(x => x.Time)
+            .ToList();
+
+        var sb = new StringBuilder();
+        sb.AppendLine("Time,FlowId,FlowName,StepNo,Comment,Result,DurationSeconds");
+        foreach (var row in rows)
+        {
+            sb.AppendLine(string.Join(",",
+                row.Time.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
+                EscapeCsv(row.FlowId),
+                EscapeCsv(row.FlowName),
+                row.StepNo.ToString(CultureInfo.InvariantCulture),
+                EscapeCsv(row.Comment),
+                EscapeCsv(row.Result),
+                row.DurationSeconds.ToString("F3", CultureInfo.InvariantCulture)));
+        }
+
+        await File.WriteAllTextAsync(filePath, sb.ToString(), new UTF8Encoding(false));
+        SystemMessage = $"Trace 已导出：{filePath}";
+        AddLog("程序监控", SystemMessage, "Info");
+    }
+
+    private static string EscapeCsv(string? value)
+    {
+        var text = value ?? string.Empty;
+        if (!text.Contains(',') && !text.Contains('"') && !text.Contains('\n') && !text.Contains('\r'))
+        {
+            return text;
+        }
+
+        return $"\"{text.Replace("\"", "\"\"", StringComparison.Ordinal)}\"";
+    }
+
+    [RelayCommand]
+    private async Task SaveProgramMonitorTraceSessionAsync()
+    {
+        var saveDialog = new SaveFileDialog
+        {
+            Title = "保存 Trace 会话",
+            Filter = "Trace 会话 (*.json)|*.json",
+            FileName = $"ProgramTraceSession_{DateTime.Now:yyyyMMdd_HHmmss}.json",
+            InitialDirectory = Path.Combine(GetProjectRoot(), "Generated", "Trace")
+        };
+
+        if (saveDialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        Directory.CreateDirectory(Path.GetDirectoryName(saveDialog.FileName) ?? Path.Combine(GetProjectRoot(), "Generated", "Trace"));
+        var session = new ProgramTraceSessionFile
+        {
+            SavedAt = DateTime.Now,
+            WindowMinutes = ProgramMonitorTraceWindowMinutes,
+            SelectedFlow = SelectedProgramMonitorTraceFlow,
+            ShowLine1 = ProgramMonitorTraceShowLine1,
+            ShowLine2 = ProgramMonitorTraceShowLine2,
+            ShowLine3 = ProgramMonitorTraceShowLine3,
+            Samples = _programMonitorTraceHistory
+                .Select(x => new ProgramTraceSessionSample
+                {
+                    FlowId = x.FlowId,
+                    FlowName = x.FlowName,
+                    Time = x.Time,
+                    StartTime = x.StartTime,
+                    EndTime = x.EndTime,
+                    DurationSeconds = x.DurationSeconds,
+                    StepNo = x.StepNo,
+                    Title = x.Title,
+                    Comment = x.Comment,
+                    Result = x.Result,
+                    RelatedAlarm = x.RelatedAlarm,
+                    IsAbnormal = x.IsAbnormal
+                })
+                .ToList()
+        };
+
+        var json = JsonSerializer.Serialize(session, new JsonSerializerOptions { WriteIndented = true });
+        await File.WriteAllTextAsync(saveDialog.FileName, json, new UTF8Encoding(false));
+        SystemMessage = $"Trace 会话已保存：{saveDialog.FileName}";
+        AddLog("程序监控", SystemMessage, "Info");
+    }
+
+    [RelayCommand]
+    private async Task LoadProgramMonitorTraceSessionAsync()
+    {
+        var openDialog = new OpenFileDialog
+        {
+            Title = "加载 Trace 会话",
+            Filter = "Trace 会话 (*.json)|*.json",
+            InitialDirectory = Path.Combine(GetProjectRoot(), "Generated", "Trace")
+        };
+
+        if (openDialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        var json = await File.ReadAllTextAsync(openDialog.FileName, Encoding.UTF8);
+        var session = JsonSerializer.Deserialize<ProgramTraceSessionFile>(json);
+        if (session is null || session.Samples.Count == 0)
+        {
+            SystemMessage = "Trace 会话文件为空或格式无效";
+            AddLog("程序监控", SystemMessage, "Warning");
+            return;
+        }
+
+        _programMonitorTraceHistory.Clear();
+        foreach (var sample in session.Samples.OrderBy(x => x.Time))
+        {
+            _programMonitorTraceHistory.Add(new FlowStepRecord
+            {
+                FlowId = sample.FlowId,
+                FlowName = sample.FlowName,
+                Time = sample.Time,
+                StartTime = sample.StartTime,
+                EndTime = sample.EndTime,
+                DurationSeconds = sample.DurationSeconds,
+                StepNo = sample.StepNo,
+                Icon = "●",
+                Title = sample.Title,
+                Comment = sample.Comment,
+                Result = sample.Result,
+                RelatedAlarm = sample.RelatedAlarm,
+                IsAbnormal = sample.IsAbnormal
+            });
+        }
+
+        ProgramMonitorTraceWindowMinutes = Math.Max(1, Math.Min(30, session.WindowMinutes <= 0 ? 5 : session.WindowMinutes));
+        SelectedProgramMonitorTraceFlow = string.IsNullOrWhiteSpace(session.SelectedFlow) ? "主线1" : session.SelectedFlow;
+        ProgramMonitorTraceShowLine1 = session.ShowLine1;
+        ProgramMonitorTraceShowLine2 = session.ShowLine2;
+        ProgramMonitorTraceShowLine3 = session.ShowLine3;
+        ProgramMonitorTracePaused = true;
+        ProgramMonitorTraceReplayMode = true;
+        ProgramMonitorTraceReplayText = "模式：加载会话";
+        ProgramMonitorTraceReplayMaximum = Math.Max(0, _programMonitorTraceHistory.Count - 1);
+        ProgramMonitorTraceReplayPosition = ProgramMonitorTraceReplayMaximum;
+        _programMonitorTraceFollowNow = false;
+        _programMonitorTraceWindowEnd = _programMonitorTraceHistory[^1].Time;
+        RefreshProgramMonitorTrace();
+
+        SystemMessage = $"Trace 会话已加载：{openDialog.FileName}";
+        AddLog("程序监控", SystemMessage, "Info");
+    }
+
+    private sealed class ProgramTraceSessionFile
+    {
+        public DateTime SavedAt { get; set; }
+        public double WindowMinutes { get; set; }
+        public string SelectedFlow { get; set; } = "主线1";
+        public bool ShowLine1 { get; set; } = true;
+        public bool ShowLine2 { get; set; } = true;
+        public bool ShowLine3 { get; set; } = true;
+        public List<ProgramTraceSessionSample> Samples { get; set; } = new();
+    }
+
+    private sealed class ProgramTraceSessionSample
+    {
+        public string FlowId { get; set; } = string.Empty;
+        public string FlowName { get; set; } = string.Empty;
+        public DateTime Time { get; set; }
+        public DateTime StartTime { get; set; }
+        public DateTime EndTime { get; set; }
+        public double DurationSeconds { get; set; }
+        public int StepNo { get; set; }
+        public string Title { get; set; } = string.Empty;
+        public string Comment { get; set; } = string.Empty;
+        public string Result { get; set; } = string.Empty;
+        public string RelatedAlarm { get; set; } = string.Empty;
+        public bool IsAbnormal { get; set; }
+    }
+
     private string BuildFlowRankingSummary()
     {
         var source = FlowSteps.AsEnumerable();
@@ -3948,6 +4900,10 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
 
     private void RebuildManualCylinderBlocksFromIo()
     {
+        var existingBlocks = ManualCylinderBlocks
+            .GroupBy(item => item.CylinderIndex)
+            .ToDictionary(group => group.Key, group => CloneManualCylinderBlockForConfig(group.OrderBy(item => item.DisplayOrder).First()));
+
         var cylinders = ExtractCylinderDefinitionsFromIo()
             .GroupBy(item => item.CylinderIndex)
             .Select(group => group.First())
@@ -3962,11 +4918,104 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
 
         foreach (var cylinder in cylinders.OrderBy(item => item.CylinderIndex))
         {
+            if (existingBlocks.TryGetValue(cylinder.CylinderIndex, out var existing))
+            {
+                cylinder.DisplayOrder = existing.DisplayOrder;
+                if (!string.IsNullOrWhiteSpace(existing.DisplayName))
+                {
+                    cylinder.DisplayName = existing.DisplayName;
+                }
+            }
+
             ManualCylinderBlocks.Add(cylinder);
             EnsureCylinderTagsForBlock(cylinder);
         }
 
         RefreshManualCylinderBlockStates();
+    }
+
+    private async Task PersistConfigAsync(bool updateStatus)
+    {
+        var path = Path.Combine(GetProjectRoot(), "config", "appsettings.json");
+        await _configurationService.SaveAsync(path, BuildAppConfig());
+        if (!updateStatus)
+        {
+            return;
+        }
+
+        SystemMessage = $"配置已保存：{path}";
+        AddLog("配置", SystemMessage, "Info");
+    }
+
+    private AppConfig BuildAppConfig()
+    {
+        return new AppConfig
+        {
+            Connection = Connection,
+            Tags = Tags.ToList(),
+            EventBindings = EventBindings.ToList(),
+            IoGeneration = new IoGenerationSettings
+            {
+                PlcType = SelectedIoPlcTemplate,
+                OperationNumber = IoOperationNumber
+            },
+            IoTableRows = IoTableRows.ToList(),
+            ManualCylinderBlocks = ManualCylinderBlocks
+                .Select(CloneManualCylinderBlockForConfig)
+                .ToList()
+        };
+    }
+
+    private void RestoreManualCylinderBlocks(IEnumerable<ManualCylinderBlockItem>? blocks)
+    {
+        ManualCylinderBlocks.Clear();
+
+        var restoredBlocks = (blocks ?? Enumerable.Empty<ManualCylinderBlockItem>())
+            .Where(item => item is not null)
+            .Select(CloneManualCylinderBlockForConfig)
+            .GroupBy(item => item.CylinderIndex)
+            .Select(group => group.OrderBy(item => item.DisplayOrder).First())
+            .OrderBy(item => item.DisplayOrder)
+            .ThenBy(item => item.CylinderIndex)
+            .ToList();
+
+        if (restoredBlocks.Count > 0)
+        {
+            foreach (var block in restoredBlocks)
+            {
+                ManualCylinderBlocks.Add(block);
+                EnsureCylinderTagsForBlock(block);
+            }
+
+            RefreshManualCylinderBlockStates();
+            return;
+        }
+
+        if (IoTableRows.Count > 0)
+        {
+            RebuildManualCylinderBlocksFromIo();
+            return;
+        }
+
+        EnsureDefaultManualCylinderBlock();
+    }
+
+    private static ManualCylinderBlockItem CloneManualCylinderBlockForConfig(ManualCylinderBlockItem source)
+    {
+        return new ManualCylinderBlockItem
+        {
+            CylinderIndex = source.CylinderIndex,
+            DisplayOrder = source.DisplayOrder,
+            DisplayName = source.DisplayName,
+            HomeCommandTagName = source.HomeCommandTagName,
+            WorkCommandTagName = source.WorkCommandTagName,
+            HomeSensorTagName = source.HomeSensorTagName,
+            WorkSensorTagName = source.WorkSensorTagName,
+            HomeInterlockTagName = source.HomeInterlockTagName,
+            WorkInterlockTagName = source.WorkInterlockTagName,
+            HomeValueTagName = source.HomeValueTagName,
+            WorkValueTagName = source.WorkValueTagName
+        };
     }
 
     private IEnumerable<ManualCylinderBlockItem> ExtractCylinderDefinitionsFromIo()
@@ -4026,7 +5075,9 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
             HomeSensorTagName = $"{root}.Status.InHome",
             WorkSensorTagName = $"{root}.Status.InWork",
             HomeInterlockTagName = $"{root}.Parm.IC_Home",
-            WorkInterlockTagName = $"{root}.Parm.IC_Work"
+            WorkInterlockTagName = $"{root}.Parm.IC_Work",
+            HomeValueTagName = $"{root}.Value_Home",
+            WorkValueTagName = $"{root}.Value_Work"
         };
     }
 
@@ -4045,6 +5096,13 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
         EnsurePlaceholderTag(block.WorkSensorTagName, false);
         EnsurePlaceholderTag(block.HomeInterlockTagName, false);
         EnsurePlaceholderTag(block.WorkInterlockTagName, false);
+        EnsurePlaceholderTag(block.HomeValueTagName, false);
+        EnsurePlaceholderTag(block.WorkValueTagName, false);
+        EnsurePlaceholderTag($"{ResolveCylinderBlockRoot(block)}.Parm.DisableHome", true);
+        EnsurePlaceholderTag($"{ResolveCylinderBlockRoot(block)}.Parm.DisableWork", true);
+        EnsurePlaceholderTag($"{ResolveCylinderBlockRoot(block)}.Parm.Error_Delay", true);
+        EnsurePlaceholderTag($"{ResolveCylinderBlockRoot(block)}.Parm.Home_Delay", true);
+        EnsurePlaceholderTag($"{ResolveCylinderBlockRoot(block)}.Parm.Work_Delay", true);
     }
 
     private void EnsurePlaceholderTag(string nodeId, bool writable)
@@ -4076,7 +5134,9 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
             block.WorkActive = GetBoolTag(block.WorkSensorTagName);
             block.HomeInterlockActive = GetBoolTag(block.HomeInterlockTagName) || !FindTagExists(block.HomeInterlockTagName);
             block.WorkInterlockActive = GetBoolTag(block.WorkInterlockTagName) || !FindTagExists(block.WorkInterlockTagName);
-            block.OutputActive = GetBoolTag(block.WorkCommandTagName);
+            block.HomeCommandActive = GetBoolTag(block.HomeValueTagName);
+            block.WorkCommandActive = GetBoolTag(block.WorkValueTagName);
+            block.OutputActive = block.WorkCommandActive;
             block.StatusText = block.WorkActive ? "前到位" : block.HomeActive ? "后到位" : "切换中";
             block.CurrentStateText = block.WorkActive && block.HomeActive
                 ? "动作位和初始位感应器都点亮，检查感应器状态"
@@ -4090,6 +5150,89 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
     }
 
     private bool FindTagExists(string tagNameOrNodeId) => FindTagByNameOrNodeId(tagNameOrNodeId) is not null;
+
+    private bool GetCylinderBlockBool(ManualCylinderBlockItem block, string primarySuffix, string? secondarySuffix = null, string? fallbackTagName = null)
+    {
+        foreach (var candidate in EnumerateCylinderBlockCandidateTags(block, primarySuffix, secondarySuffix, fallbackTagName))
+        {
+            var tag = FindTagByNameOrNodeId(candidate);
+            if (tag is not null)
+            {
+                return string.Equals(tag.CurrentValue, "True", StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
+        return false;
+    }
+
+    private IEnumerable<string> EnumerateCylinderBlockCandidateTags(ManualCylinderBlockItem block, string primarySuffix, string? secondarySuffix = null, string? fallbackTagName = null)
+    {
+        var candidates = new List<string>();
+        var root = ResolveCylinderBlockRoot(block);
+
+        if (!string.IsNullOrWhiteSpace(root))
+        {
+            candidates.Add(root + primarySuffix);
+            if (!string.IsNullOrWhiteSpace(secondarySuffix))
+            {
+                candidates.Add(root + secondarySuffix);
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(fallbackTagName))
+        {
+            candidates.Add(fallbackTagName);
+        }
+
+        return candidates
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static string ResolveCylinderBlockRoot(ManualCylinderBlockItem block)
+    {
+        var sources = new[]
+        {
+            block.HomeCommandTagName,
+            block.WorkCommandTagName,
+            block.HomeSensorTagName,
+            block.WorkSensorTagName,
+            block.HomeInterlockTagName,
+            block.WorkInterlockTagName
+        };
+
+        var suffixes = new[]
+        {
+            ".Cmd.ManuToHome",
+            ".Cmd.ManuToWork",
+            ".Status.InHome",
+            ".Status.InWork",
+            ".Parm.IC_Home",
+            ".Parm.IC_Work",
+            ".DevStatus.Valve_Home",
+            ".DevStatus.Valve_Work",
+            ".Value_Home",
+            ".Value_Work"
+        };
+
+        foreach (var source in sources)
+        {
+            if (string.IsNullOrWhiteSpace(source))
+            {
+                continue;
+            }
+
+            foreach (var suffix in suffixes)
+            {
+                if (source.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+                {
+                    return source[..^suffix.Length];
+                }
+            }
+        }
+
+        return string.Empty;
+    }
 
     private string GetApplicationRoot()
     {

@@ -9,4 +9,5 @@ public class AppConfig
     public List<EventBinding> EventBindings { get; set; } = new();
     public IoGenerationSettings IoGeneration { get; set; } = new();
     public List<IoTableRow> IoTableRows { get; set; } = new();
+    public List<ManualCylinderBlockItem> ManualCylinderBlocks { get; set; } = new();
 }
