@@ -65,12 +65,12 @@ public partial class MainViewModel : ObservableObject
     public ObservableCollection<string> ToolboxItems { get; } = new() { "Button", "Indicator", "Label", "ValueDisplay", "AlarmBanner", "Motor", "Cylinder", "Axis", "Robot", "Stopper", "PageButton" };
     public ObservableCollection<string> RuntimeTemplates { get; } = new() { "主界面", "监控画面", "手动画面", "参数设定", "报警画面" };
     public ObservableCollection<string> CommunicationProtocolOptions { get; } = new() { "OPC UA", "Modbus TCP", "MC Protocol" };
-    public ObservableCollection<string> DesignerActionOptions { get; } = new() { "", "鍙橀噺缈昏浆", "缃綅", "澶嶄綅", "鑴夊啿", "椤甸潰璺宠浆", "姘旂几鍥炲師", "姘旂几鍔ㄧ偣" };
+    public ObservableCollection<string> DesignerActionOptions { get; } = new() { "", "变量翻转", "置位", "复位", "脉冲", "页面跳转", "气缸回原", "气缸动点" };
     public ObservableCollection<string> DesignerNavigationTargetOptions { get; } = new() { "主界面", "监控", "手动操作", "参数设定", "配方管理", "报警画面", "登录", "设计器" };
     public ObservableCollection<ParameterItem> Parameters { get; } = new();
     public ObservableCollection<UserRole> Roles { get; } = new() { UserRole.Operator, UserRole.Engineer, UserRole.Administrator };
-    public ObservableCollection<string> MonitorCategoryOptions { get; } = new() { "鍏ㄩ儴", "Production", "Alarm", "Axis", "Motor", "Cylinder", "Robot", "IO" };
-    public ObservableCollection<string> AlarmLevelOptions { get; } = new() { "鍏ㄩ儴", "Alarm", "Error", "Warning", "Info" };
+    public ObservableCollection<string> MonitorCategoryOptions { get; } = new() { "全部", "Production", "Alarm", "Axis", "Motor", "Cylinder", "Robot", "IO" };
+    public ObservableCollection<string> AlarmLevelOptions { get; } = new() { "全部", "Alarm", "Error", "Warning", "Info" };
     public ObservableCollection<string> AlarmTimeRangeOptions { get; } = new() { "全部", "本班次", "今日", "近7天" };
     public ObservableCollection<AlarmRecord> AlarmStatistics { get; } = new();
     public ObservableCollection<OperationAuditRecord> OperationAudits { get; } = new();
@@ -85,20 +85,20 @@ public partial class MainViewModel : ObservableObject
     public ObservableCollection<GeneratedProgramArtifact> GeneratedIoPrograms { get; } = new();
     public ObservableCollection<AutoProgramFlowNode> AutoProgramFlowNodes { get; } = new();
     public ObservableCollection<GeneratedProgramArtifact> GeneratedAutoPrograms { get; } = new();
-    public ObservableCollection<string> FlowFilterOptions { get; } = new() { "鍏ㄩ儴", "涓荤嚎1", "涓荤嚎2", "涓荤嚎3" };
+    public ObservableCollection<string> FlowFilterOptions { get; } = new() { "全部", "主线1", "主线2", "主线3" };
     public ObservableCollection<string> FlowTimeRangeOptions { get; } = new() { "全部", "本班次", "今日", "近7天" };
-    public ObservableCollection<string> FlowStepFilterOptions { get; } = new() { "鍏ㄩ儴", "10", "20", "30", "40", "50", "60" };
-    public ObservableCollection<string> IoPlcTemplateOptions { get; } = new() { "姹囧窛涓瀷PLC" };
+    public ObservableCollection<string> FlowStepFilterOptions { get; } = new() { "全部", "10", "20", "30", "40", "50", "60" };
+    public ObservableCollection<string> IoPlcTemplateOptions { get; } = new() { "汇川中型PLC" };
 
     [ObservableProperty] private OpcUaConnectionOptions connection = new();
     [ObservableProperty] private int selectedTabIndex;
-    [ObservableProperty] private string currentMonitorSubSection = "杈撳叆杈撳嚭鐩戞帶";
+    [ObservableProperty] private string currentMonitorSubSection = "输入输出监控";
 [ObservableProperty] private string currentManualSubSection = "气缸";
-    [ObservableProperty] private string currentParameterSubSection = "绯荤粺鍙傛暟璁惧畾";
-    [ObservableProperty] private string currentAlarmSubSection = "褰撳墠鎶ヨ";
+    [ObservableProperty] private string currentParameterSubSection = "系统参数设定";
+    [ObservableProperty] private string currentAlarmSubSection = "当前报警";
 [ObservableProperty] private string currentDesignerSubSection = "画布设计";
     [ObservableProperty] private string currentSection = "主界面";
-    [ObservableProperty] private string systemMessage = "绯荤粺灏辩华";
+    [ObservableProperty] private string systemMessage = "系统就绪";
     [ObservableProperty] private string loginUser = "操作员";
     [ObservableProperty] private string manualWriteTagName = string.Empty;
     [ObservableProperty] private string manualWriteValue = string.Empty;
@@ -150,20 +150,20 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private string cylinderCurrentActionTimeDisplay = "--";
     [ObservableProperty] private string cylinderLastActionTimeDisplay = "--";
     [ObservableProperty] private int cylinderActionCount;
-    [ObservableProperty] private string selectedMonitorCategory = "鍏ㄩ儴";
-    [ObservableProperty] private string selectedAlarmLevel = "鍏ㄩ儴";
-    [ObservableProperty] private string selectedAlarmTimeRange = "鍏ㄩ儴";
+    [ObservableProperty] private string selectedMonitorCategory = "全部";
+    [ObservableProperty] private string selectedAlarmLevel = "全部";
+    [ObservableProperty] private string selectedAlarmTimeRange = "全部";
     [ObservableProperty] private bool showOnlyFocusAlarms;
     [ObservableProperty] private double startHoldProgress;
     [ObservableProperty] private int currentFlowStepNo;
-    [ObservableProperty] private string currentFlowComment = "鑷姩娴佺▼寰呭懡";
-    [ObservableProperty] private string selectedRecipeName = "浜у搧A";
-    [ObservableProperty] private string selectedFlowFilter = "鍏ㄩ儴";
-    [ObservableProperty] private string selectedFlowTimeRange = "鍏ㄩ儴";
-    [ObservableProperty] private string selectedFlowStepFilter = "鍏ㄩ儴";
+    [ObservableProperty] private string currentFlowComment = "自动流程待命";
+    [ObservableProperty] private string selectedRecipeName = "产品A";
+    [ObservableProperty] private string selectedFlowFilter = "全部";
+    [ObservableProperty] private string selectedFlowTimeRange = "全部";
+    [ObservableProperty] private string selectedFlowStepFilter = "全部";
     [ObservableProperty] private bool showOnlyAbnormalFlow;
     [ObservableProperty] private string jumpAlarmKeyword = string.Empty;
-    [ObservableProperty] private string selectedIoPlcTemplate = "姹囧窛涓瀷PLC";
+    [ObservableProperty] private string selectedIoPlcTemplate = "汇川中型PLC";
     [ObservableProperty] private string ioOperationNumber = "OP10";
     [ObservableProperty] private int ioSaveIntervalMinutes = 5;
     [ObservableProperty] private string ioImportSummary = "尚未导入 IO 表";
@@ -242,7 +242,7 @@ public partial class MainViewModel : ObservableObject
         catch (Exception ex)
         {
             SystemMessage = $"启动加载配置失败：{ex.Message}";
-            AddLog("閰嶇疆", SystemMessage, "Error");
+            AddLog("配置", SystemMessage, "Error");
         }
     }
     public int AlarmCount => CurrentAlarms.Count(a => a.Active);
@@ -259,7 +259,7 @@ public partial class MainViewModel : ObservableObject
         UserRole.Operator => "操作员",
         UserRole.Engineer => "工程师",
         UserRole.Administrator => "管理员",
-        _ => "鏈煡"
+        _ => "未知"
     };
     public int ActiveAlarmCount => CurrentAlarms.Count(a => a.Active);
     public int UnacknowledgedAlarmCount => CurrentAlarms.Count(a => a.Active && !a.Acknowledged);
@@ -279,17 +279,17 @@ public partial class MainViewModel : ObservableObject
     public double OeeRate => Math.Round(AvailabilityRate * PerformanceRate * QualityRate / 10000.0, 1);
     public string DeviceStatusText => ActiveAlarmCount > 0 ? "报警中" : GetBoolTag("Device_Start") ? "运行中" : "待机";
     public string ShiftStatusText => ShiftProductionCount >= TargetCount ? "班次达成" : "班次生产中";
-    public string CurrentRecipeText => string.IsNullOrWhiteSpace(SelectedRecipeName) ? (GetTagValue("Recipe_Name") == "--" ? "浜у搧A" : GetTagValue("Recipe_Name")) : SelectedRecipeName;
+    public string CurrentRecipeText => string.IsNullOrWhiteSpace(SelectedRecipeName) ? (GetTagValue("Recipe_Name") == "--" ? "产品A" : GetTagValue("Recipe_Name")) : SelectedRecipeName;
     public string CurrentOrderText => GetTagValue("WorkOrder_No") == "--" ? "WO-20260404-01" : GetTagValue("WorkOrder_No");
-    public string MotorStatusText => GetBoolTag("Motor1_Fault") ? "鏁呴殰" : GetBoolTag("Y_RunLamp") ? "杩愯" : "鍋滄";
+    public string MotorStatusText => GetBoolTag("Motor1_Fault") ? "故障" : GetBoolTag("Y_RunLamp") ? "运行" : "停止";
     public string CylinderStatusText => CylinderForwardActive ? "前到位" : CylinderBackwardActive ? "后到位" : "切换中";
     public string CylinderDisplayName => string.IsNullOrWhiteSpace(CylinderConfiguredName) ? GetImportedCylinderDisplayName() : CylinderConfiguredName;
-    public string CylinderHomeMaskButtonText => CylinderHomeMaskEnabled ? "鍘熺偣灞忚斀锛氬紑" : "鍘熺偣灞忚斀锛氬叧";
-    public string CylinderWorkMaskButtonText => CylinderWorkMaskEnabled ? "鍔ㄧ偣灞忚斀锛氬紑" : "鍔ㄧ偣灞忚斀锛氬叧";
+    public string CylinderHomeMaskButtonText => CylinderHomeMaskEnabled ? "原点屏蔽：开" : "原点屏蔽：关";
+    public string CylinderWorkMaskButtonText => CylinderWorkMaskEnabled ? "动点屏蔽：开" : "动点屏蔽：关";
     public bool CylinderForwardActive => GetCylinderBool(CylinderWorkSensorTagName, ".Status.InWork", ".DevStatus.Sensor_Work", "Cylinder_FwdLS");
     public bool CylinderBackwardActive => GetCylinderBool(CylinderHomeSensorTagName, ".Status.InHome", ".DevStatus.Sensor_Home", "Cylinder_BwdLS");
     public bool CylinderOutputActive => GetCylinderBool(CylinderWorkCommandTagName, ".DevStatus.Valve_Work", ".Cmd.ManuToWork", "Cylinder_Extend");
-    public string CylinderOutputText => CylinderOutputActive ? "浼稿嚭鍛戒护鏈夋晥" : "鍥炵缉寰呭懡";
+    public string CylinderOutputText => CylinderOutputActive ? "伸出命令有效" : "回缩待命";
     public string CylinderCurrentStateText => ResolveCylinderCurrentStateText();
     public string CylinderActionHint => CylinderForwardActive ? "当前在前到位，适合执行回原或松开动作" : CylinderBackwardActive ? "当前在后到位，适合执行伸出或夹紧动作" : "气缸处于中间状态，等待动作完成后再切换";
     public bool CylinderInterlockBaseReady => !GetBoolTag("Alarm_EStop") && (!GetBoolTag("Y_RunLamp") || AllowManualCylinderWhenAuto) && (CylinderForwardActive || CylinderBackwardActive);
@@ -298,37 +298,37 @@ public partial class MainViewModel : ObservableObject
     public string CylinderHomeInterlockText => CylinderHomeInterlockActive ? "允许回原" : GetCylinderBool(".Parm.IC_Home", fallbackValue: true) ? (CylinderBackwardActive ? "已在原点" : "回原互锁未满足") : "回原互锁未满足";
     public string CylinderMoveInterlockText => CylinderMoveInterlockActive ? "允许动点" : GetCylinderBool(".Parm.IC_Work", fallbackValue: true) ? (CylinderForwardActive ? "已在动点" : "动点互锁未满足") : "动点互锁未满足";
     public string CylinderInterlockHint => GetBoolTag("Alarm_EStop")
-        ? "鎬ュ仠鏈浣嶏紝绂佹鎿嶄綔姘旂几"
+        ? "急停未复位，禁止操作气缸"
         : GetBoolTag("Y_RunLamp") && !AllowManualCylinderWhenAuto
-            ? "璁惧鑷姩杩愯涓紝褰撳墠鑱旈攣绂佹鎵嬪姩姘旂几"
+            ? "设备自动运行中，当前联锁禁止手动气缸"
             : AllowManualCylinderWhenAuto
                 ? "自动运行时允许手动切换气缸"
-                : "褰撳墠鍏佽鎵嬪姩鎿嶄綔姘旂几";
+                : "当前允许手动操作气缸";
     public string AxisStatusText => GetBoolTag("Axis1_Alarm") ? "报警" : GetBoolTag("Axis1_Enable") ? $"使能 / 位置 {GetTagValue("Axis1_Pos")}" : "未使能";
-    public string RobotStatusText => GetBoolTag("Robot_Pause") ? "鏆傚仠" : GetBoolTag("Robot_Run") ? "杩愯" : "寰呮満";
+    public string RobotStatusText => GetBoolTag("Robot_Pause") ? "暂停" : GetBoolTag("Robot_Run") ? "运行" : "待机";
     public bool IsDebugMode => GetBoolTag("Mode_Debug");
     public bool IsDryRunMode => GetBoolTag("Mode_DryRun");
     public bool IsBypassStationMode => GetBoolTag("Mode_BypassStation");
     public bool IsManualMode => GetBoolTag("Mode_Manual");
     public bool IsAutoMode => GetBoolTag("Mode_Auto");
-    public string RunModeSummary => IsManualMode ? "浜哄伐妯″紡" : IsAutoMode ? "鑷姩妯″紡" : "鏈€夋嫨";
+    public string RunModeSummary => IsManualMode ? "人工模式" : IsAutoMode ? "自动模式" : "未选择";
     public string StartStopSummary => GetBoolTag("Device_Start") ? "设备已启动" : "设备已停止";
     public bool StartModeReady => IsManualMode || IsAutoMode;
     public bool StartAlarmReady => ActiveAlarmCount == 0;
     public bool StartInterlockReady => StartModeReady && StartAlarmReady;
-    public string ProductionTrendSummary => $"鐝 {ShiftProductionCount} / 鏃ョ疮璁?{DailyProductionCount} / 鐩爣 {TargetCount}";
+    public string ProductionTrendSummary => $"班次 {ShiftProductionCount} / 日累计 {DailyProductionCount} / 目标 {TargetCount}";
     public string CurrentFlowStepText => $"STEP {CurrentFlowStepNo:000}";
     public string SelectedFlowSummary => SelectedFlowFilter == "全部" ? "多流程并行视图" : $"当前流程：{SelectedFlowFilter}";
     public string OeeTrendSummary => $"A {AvailabilityRate:F1}% / P {PerformanceRate:F1}% / Q {QualityRate:F1}% / OEE {OeeRate:F1}%";
-    public string AlarmTrendSummary => $"娲诲姩 {ActiveAlarmCount} / 鏈‘璁?{UnacknowledgedAlarmCount} / 閲嶇偣 {AlarmStatistics.Count(a => a.Count >= 3 || a.Active)}";
-    public string TimeAxisSummary => $"閲囨牱鐐癸細鏈€杩?6 涓懆鏈?/ 鏃堕棿杞达細{DateTime.Now.AddMinutes(-25):HH:mm} - {DateTime.Now:HH:mm}";
-    public bool AllowManualCylinderWhenAuto => GetBoolParameter("鑷姩杩愯鍏佽鎵嬪姩姘旂几", false);
+    public string AlarmTrendSummary => $"活动 {ActiveAlarmCount} / 未确认 {UnacknowledgedAlarmCount} / 重点 {AlarmStatistics.Count(a => a.Count >= 3 || a.Active)}";
+    public string TimeAxisSummary => $"采样点：最近 6 个周期 / 时间轴：{DateTime.Now.AddMinutes(-25):HH:mm} - {DateTime.Now:HH:mm}";
+    public bool AllowManualCylinderWhenAuto => GetBoolParameter("自动运行允许手动气缸", false);
     public bool AllowManualStopperWhenAuto => GetBoolParameter("鑷姩杩愯鍏佽鎵嬪姩鎸″仠", false);
-    public bool AllowRobotResetWhenRunning => GetBoolParameter("鏈烘鎵嬭繍琛屾椂鍏佽澶嶄綅", false);
-    public bool AllowAxisMoveWhenAlarm => GetBoolParameter("杞存姤璀︽椂鍏佽杩愬姩", false);
+    public bool AllowRobotResetWhenRunning => GetBoolParameter("机械手运行时允许复位", false);
+    public bool AllowAxisMoveWhenAlarm => GetBoolParameter("轴报警时允许运动", false);
     public double EstimatedDowntimeMinutes => AlarmStatistics.Where(a => a.Active || a.Count >= 3).Sum(a => a.Level switch { "Alarm" => a.Count * 12, "Error" => a.Count * 8, "Warning" => a.Count * 4, _ => a.Count * 2 });
     public int EstimatedProductionLoss => (int)Math.Round((EstimatedDowntimeMinutes / 60.0) * GetIntTag("Throughput_Hourly", 380));
-    public string FocusAlarmHint => AlarmStatistics.FirstOrDefault()?.Message ?? "褰撳墠鏆傛棤閲嶇偣鎶ヨ";
+    public string FocusAlarmHint => AlarmStatistics.FirstOrDefault()?.Message ?? "当前暂无重点报警";
     public string ProductionTrendPath => BuildSparklinePath(new double[] { Math.Max(0, ShiftProductionCount * 0.35), ShiftProductionCount * 0.5, ShiftProductionCount * 0.68, ShiftProductionCount * 0.8, ShiftProductionCount * 0.92, ShiftProductionCount });
     public string OeeTrendPath => BuildSparklinePath(new double[] { Math.Max(0, OeeRate - 9), OeeRate - 5, OeeRate - 3, OeeRate - 1, OeeRate + 1, OeeRate });
     public string AlarmTrendPath => BuildSparklinePath(new double[] { ActiveAlarmCount + 4, ActiveAlarmCount + 3, ActiveAlarmCount + 2, ActiveAlarmCount + 2, ActiveAlarmCount + 1, Math.Max(1, ActiveAlarmCount) });
@@ -347,7 +347,7 @@ public partial class MainViewModel : ObservableObject
     public string SelectedGeneratedAutoProgramContent => SelectedGeneratedAutoProgram?.Content ?? "生成完成后，自动程序预览会显示在这里。";
     public string AutoProgramHeadline => $"流程：{AutoProgramName} / 工位：{AutoProgramStation} / 步序：{AutoProgramFlowNodes.Count}";
     public string AutoProgramSummary => AutoProgramFlowNodes.Count == 0
-        ? "灏氭湭閰嶇疆鑷姩娴佺▼鑺傜偣"
+        ? "尚未配置自动流程节点"
         : $"已配置 {AutoProgramFlowNodes.Count} 个流程节点，支持绘制流程图并生成自动程序骨架。";
     public bool CanSaveIoTable => !string.IsNullOrWhiteSpace(_currentIoSourceFilePath);
     public string CurrentNavigationGroup => ResolveNavigationGroup(CurrentSection);
@@ -687,7 +687,7 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
             RefreshAlarmStatistics();
             SimulateFlowProgress();
             await SaveTrendHistoryAsync();
-            SystemMessage = "鍙橀噺鍒锋柊瀹屾垚";
+        SystemMessage = "变量刷新完成";
         }
         catch (Exception ex)
         {
@@ -761,7 +761,7 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
         if (!string.Equals(SelectedOpcUaBrowseNode.NodeClass, "Variable", StringComparison.OrdinalIgnoreCase))
         {
             SelectedOpcUaNodeValue = "--";
-            SelectedOpcUaNodeStatus = "褰撳墠鑺傜偣涓嶆槸鍙橀噺鑺傜偣";
+        SelectedOpcUaNodeStatus = "当前节点不是变量节点";
             SelectedOpcUaNodeTimestamp = "--";
             SelectedOpcUaBrowseNode.DataType = "--";
             OpcUaBrowserStatus = $"宸查€変腑 {SelectedOpcUaBrowseNode.DisplayName}";
@@ -845,7 +845,7 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
         SetTagValue("Daily_ProductionCount", "0");
         SetTagValue("Daily_GoodCount", "0");
         SetTagValue("Daily_NgCount", "0");
-        AddLog("鐢熶骇", "鏃ョ疮璁¤鏁板凡娓呴浂", "Info");
+        AddLog("生产", "日累计计数已清零", "Info");
         UpdateRuntimeVisuals();
         await Task.CompletedTask;
     }
@@ -862,22 +862,22 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
 
         var sb = new StringBuilder();
         sb.AppendLine("项目,值");
-        sb.AppendLine($"宸ュ崟鍙?{CurrentOrderText}");
-        sb.AppendLine($"閰嶆柟,{CurrentRecipeText}");
-        sb.AppendLine($"鎬讳骇閲?{ProductionCount}");
-        sb.AppendLine($"鑹搧,{GoodCount}");
-        sb.AppendLine($"涓嶈壇,{NgCount}");
-        sb.AppendLine($"鐝浜ч噺,{ShiftProductionCount}");
-        sb.AppendLine($"鏃ョ疮璁?{DailyProductionCount}");
-        sb.AppendLine($"鐩爣,{TargetCount}");
+        sb.AppendLine($"工单号,{CurrentOrderText}");
+        sb.AppendLine($"配方,{CurrentRecipeText}");
+        sb.AppendLine($"总产量,{ProductionCount}");
+        sb.AppendLine($"良品,{GoodCount}");
+        sb.AppendLine($"不良,{NgCount}");
+        sb.AppendLine($"班次产量,{ShiftProductionCount}");
+        sb.AppendLine($"日累计,{DailyProductionCount}");
+        sb.AppendLine($"目标,{TargetCount}");
         sb.AppendLine($"Availability,{AvailabilityRate.ToString("F1", CultureInfo.InvariantCulture)}");
         sb.AppendLine($"Performance,{PerformanceRate.ToString("F1", CultureInfo.InvariantCulture)}");
         sb.AppendLine($"Quality,{QualityRate.ToString("F1", CultureInfo.InvariantCulture)}");
         sb.AppendLine($"OEE,{OeeRate.ToString("F1", CultureInfo.InvariantCulture)}");
-        sb.AppendLine($"棰勮鍋滄満鍒嗛挓,{EstimatedDowntimeMinutes.ToString("F1", CultureInfo.InvariantCulture)}");
-        sb.AppendLine($"棰勮褰卞搷浜ч噺,{EstimatedProductionLoss}");
+        sb.AppendLine($"预计停机分钟,{EstimatedDowntimeMinutes.ToString("F1", CultureInfo.InvariantCulture)}");
+        sb.AppendLine($"预计影响产量,{EstimatedProductionLoss}");
         sb.AppendLine();
-        sb.AppendLine("鎶ヨ鏉ユ簮,绾у埆,绱娆℃暟,鐘舵€?缁撹");
+        sb.AppendLine("报警来源,级别,累计次数,状态,结论");
         foreach (var item in AlarmStatistics)
         {
             sb.AppendLine($"{item.Source},{item.Level},{item.Count},{item.State},{item.Message}");
@@ -888,17 +888,17 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
         var excelPath = Path.ChangeExtension(dialog.FileName, ".xls");
         var html = new StringBuilder();
         html.AppendLine("<html><meta charset='utf-8'><body>");
-        html.AppendLine("<table border='1'><tr><th>椤圭洰</th><th>鍊?/th></tr>");
-        html.AppendLine($"<tr><td>宸ュ崟鍙?/td><td>{CurrentOrderText}</td></tr>");
-        html.AppendLine($"<tr><td>閰嶆柟</td><td>{CurrentRecipeText}</td></tr>");
-        html.AppendLine($"<tr><td>鎬讳骇閲?/td><td>{ProductionCount}</td></tr>");
-        html.AppendLine($"<tr><td>鑹搧</td><td>{GoodCount}</td></tr>");
-        html.AppendLine($"<tr><td>涓嶈壇</td><td>{NgCount}</td></tr>");
+        html.AppendLine("<table border='1'><tr><th>项目</th><th>值</th></tr>");
+        html.AppendLine($"<tr><td>工单号</td><td>{CurrentOrderText}</td></tr>");
+        html.AppendLine($"<tr><td>配方</td><td>{CurrentRecipeText}</td></tr>");
+        html.AppendLine($"<tr><td>总产量</td><td>{ProductionCount}</td></tr>");
+        html.AppendLine($"<tr><td>良品</td><td>{GoodCount}</td></tr>");
+        html.AppendLine($"<tr><td>不良</td><td>{NgCount}</td></tr>");
         html.AppendLine($"<tr><td>OEE</td><td>{OeeRate:F1}%</td></tr>");
-        html.AppendLine($"<tr><td>棰勮鍋滄満鍒嗛挓</td><td>{EstimatedDowntimeMinutes:F1}</td></tr>");
-        html.AppendLine($"<tr><td>棰勮褰卞搷浜ч噺</td><td>{EstimatedProductionLoss}</td></tr>");
+        html.AppendLine($"<tr><td>预计停机分钟</td><td>{EstimatedDowntimeMinutes:F1}</td></tr>");
+        html.AppendLine($"<tr><td>预计影响产量</td><td>{EstimatedProductionLoss}</td></tr>");
         html.AppendLine("</table><br/>");
-        html.AppendLine("<table border='1'><tr><th>鎶ヨ鏉ユ簮</th><th>绾у埆</th><th>绱娆℃暟</th><th>鐘舵€?/th><th>寤鸿</th><th>鍘熷洜褰掓。</th></tr>");
+        html.AppendLine("<table border='1'><tr><th>报警来源</th><th>级别</th><th>累计次数</th><th>状态</th><th>建议</th><th>原因归档</th></tr>");
         foreach (var item in AlarmStatistics)
         {
             html.AppendLine($"<tr><td>{item.Source}</td><td>{item.Level}</td><td>{item.Count}</td><td>{item.State}</td><td>{item.HandlingSuggestion}</td><td>{item.CauseArchive}</td></tr>");
@@ -906,14 +906,14 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
         html.AppendLine("</table></body></html>");
         await File.WriteAllTextAsync(excelPath, html.ToString(), Encoding.UTF8);
 
-        SystemMessage = $"鎶ヨ〃宸插鍑猴細CSV + Excel鍏煎鏂囦欢";
-        AddLog("鎶ヨ〃", SystemMessage, "Info");
+        SystemMessage = "报表已导出：CSV + Excel 兼容文件";
+        AddLog("报表", SystemMessage, "Info");
     }
 
     [RelayCommand]
     private async Task ImportTagsAsync()
     {
-        var dialog = new OpenFileDialog { Filter = "CSV 鏂囦欢|*.csv|鎵€鏈夋枃浠秥*.*" };
+        var dialog = new OpenFileDialog { Filter = "CSV 文件|*.csv|所有文件|*.*" };
         if (dialog.ShowDialog() != true) return;
         var imported = await _csvImportService.ImportTagsAsync(dialog.FileName);
         Tags.Clear();
@@ -921,13 +921,13 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
         OnPropertyChanged(nameof(TagCount));
         RefreshMonitorView();
         SystemMessage = $"已导入变量表：{Path.GetFileName(dialog.FileName)}，共 {Tags.Count} 项";
-        AddLog("閰嶇疆", SystemMessage, "Info");
+        AddLog("配置", SystemMessage, "Info");
     }
 
     [RelayCommand]
     private async Task ImportXmlTagsAsync()
     {
-        var dialog = new OpenFileDialog { Filter = "XML 鏂囦欢|*.xml|鎵€鏈夋枃浠秥*.*" };
+        var dialog = new OpenFileDialog { Filter = "XML 文件|*.xml|所有文件|*.*" };
         if (dialog.ShowDialog() != true) return;
 
         try
@@ -938,26 +938,26 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
             OnPropertyChanged(nameof(TagCount));
             RefreshMonitorView();
             SystemMessage = $"已导入 XML 变量表：{Path.GetFileName(dialog.FileName)}，共 {Tags.Count} 项";
-            AddLog("閰嶇疆", SystemMessage, "Info");
+            AddLog("配置", SystemMessage, "Info");
         }
         catch (Exception ex)
         {
-            ShowPopup("XML瀵煎叆澶辫触", ex.Message, "Warning");
+            ShowPopup("XML导入失败", ex.Message, "Warning");
         }
     }
 
     [RelayCommand]
     private void JumpToAlarmPage()
     {
-        Navigate("鎶ヨ鐢婚潰");
-        SectionJumpRequested?.Invoke("鎶ヨ鐢婚潰", null);
+        Navigate("报警画面");
+        SectionJumpRequested?.Invoke("报警画面", null);
     }
 
     [RelayCommand]
     private void JumpToAuditPage()
     {
-        Navigate("鎿嶄綔瀹¤");
-        SectionJumpRequested?.Invoke("鎿嶄綔瀹¤", null);
+        Navigate("操作审计");
+        SectionJumpRequested?.Invoke("操作审计", null);
     }
 
     [RelayCommand]
@@ -965,8 +965,8 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
     {
         JumpAlarmKeyword = keyword ?? string.Empty;
         HighlightAlarm(JumpAlarmKeyword);
-        Navigate("褰撳墠鎶ヨ");
-        SectionJumpRequested?.Invoke("鎶ヨ鐢婚潰", JumpAlarmKeyword);
+        Navigate("当前报警");
+        SectionJumpRequested?.Invoke("报警画面", JumpAlarmKeyword);
         HighlightRequested?.Invoke("Alarm", JumpAlarmKeyword);
     }
 
@@ -988,14 +988,14 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
             RefreshFlowView();
             HighlightRequested?.Invoke("Flow", $"{matched.FlowName}|{matched.StepNo}");
         }
-        Navigate("绋嬪簭鐩戞帶");
-        SectionJumpRequested?.Invoke("鐩戣鐢婚潰", alarmKeyword);
+        Navigate("程序监控");
+        SectionJumpRequested?.Invoke("监视画面", alarmKeyword);
     }
 
     [RelayCommand]
     private async Task ExportFlowIssueReportAsync()
     {
-        var dialog = new SaveFileDialog { Filter = "CSV 鏂囦欢|*.csv", FileName = $"flow-issue-report-{DateTime.Now:yyyyMMdd-HHmmss}.csv" };
+        var dialog = new SaveFileDialog { Filter = "CSV 文件|*.csv", FileName = $"flow-issue-report-{DateTime.Now:yyyyMMdd-HHmmss}.csv" };
         if (dialog.ShowDialog() != true) return;
         var sb = new StringBuilder();
         sb.AppendLine("Category,Name,Metric,Conclusion");
@@ -1010,14 +1010,14 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
             sb.AppendLine($"{item.FlowName},{item.StepNo},{item.StartTime:yyyy-MM-dd HH:mm:ss},{item.EndTime:yyyy-MM-dd HH:mm:ss},{item.DurationSeconds:F2},{item.Result},{item.RelatedAlarm}");
         }
         await File.WriteAllTextAsync(dialog.FileName, sb.ToString(), Encoding.UTF8);
-        SystemMessage = $"寮傚父娴佺▼鍒嗘瀽鎶ュ憡宸插鍑猴細{dialog.FileName}";
-        AddLog("娴佺▼鍒嗘瀽", SystemMessage, "Info");
+        SystemMessage = $"异常流程分析报告已导出：{dialog.FileName}";
+        AddLog("流程分析", SystemMessage, "Info");
     }
 
     [RelayCommand]
     private async Task ImportFlowCsvAsync()
     {
-        var dialog = new OpenFileDialog { Filter = "CSV 鏂囦欢|*.csv|鎵€鏈夋枃浠秥*.*" };
+        var dialog = new OpenFileDialog { Filter = "CSV 文件|*.csv|所有文件|*.*" };
         if (dialog.ShowDialog() != true) return;
         var items = await _flowLogCsvService.LoadAsync(dialog.FileName);
         if (items.Count == 0)
@@ -1128,10 +1128,10 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
     }
 
     [RelayCommand]
-    private async Task CylinderMoveToHomeAsync(ManualCylinderBlockItem? block) => await SetCylinderPositionAsync(block, false, "姘旂几鍘熺偣鎿嶄綔");
+    private async Task CylinderMoveToHomeAsync(ManualCylinderBlockItem? block) => await SetCylinderPositionAsync(block, false, "气缸原点操作");
 
     [RelayCommand]
-    private async Task CylinderMoveToWorkAsync(ManualCylinderBlockItem? block) => await SetCylinderPositionAsync(block, true, "姘旂几鍔ㄧ偣鎿嶄綔");
+    private async Task CylinderMoveToWorkAsync(ManualCylinderBlockItem? block) => await SetCylinderPositionAsync(block, true, "气缸动点操作");
 
     [RelayCommand]
     private void ToggleCylinderHomeMask()
@@ -1148,19 +1148,19 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
     }
 
     [RelayCommand]
-    private async Task SetDebugModeAsync() => await SetExclusiveModeAsync("Mode_Debug", "璋冭瘯妯″紡");
+    private async Task SetDebugModeAsync() => await SetExclusiveModeAsync("Mode_Debug", "调试模式");
 
     [RelayCommand]
-    private async Task SetDryRunModeAsync() => await SetExclusiveModeAsync("Mode_DryRun", "绌鸿窇妯″紡");
+    private async Task SetDryRunModeAsync() => await SetExclusiveModeAsync("Mode_DryRun", "空跑模式");
 
     [RelayCommand]
-    private async Task SetBypassStationModeAsync() => await SetExclusiveModeAsync("Mode_BypassStation", "杩囩珯妯″紡");
+    private async Task SetBypassStationModeAsync() => await SetExclusiveModeAsync("Mode_BypassStation", "过站模式");
 
     [RelayCommand]
-    private async Task SetManualModeAsync() => await SetExclusiveModeAsync("Mode_Manual", "浜哄伐妯″紡");
+    private async Task SetManualModeAsync() => await SetExclusiveModeAsync("Mode_Manual", "人工模式");
 
     [RelayCommand]
-    private async Task SetAutoModeAsync() => await SetExclusiveModeAsync("Mode_Auto", "鑷姩妯″紡");
+    private async Task SetAutoModeAsync() => await SetExclusiveModeAsync("Mode_Auto", "自动模式");
 
     [RelayCommand]
     private async Task StartDeviceAsync()
@@ -1181,7 +1181,7 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
             return;
         }
 
-        await ToggleBoundBooleanTagAsync("Device_Start", "璁惧鍚姩");
+        await ToggleBoundBooleanTagAsync("Device_Start", "设备启动");
     }
 
     [RelayCommand]
@@ -1193,7 +1193,7 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
             return;
         }
 
-        await ToggleBoundBooleanTagAsync("Device_Start", "璁惧鍋滄");
+        await ToggleBoundBooleanTagAsync("Device_Start", "设备停止");
     }
 
     [RelayCommand]
@@ -1216,8 +1216,8 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
             ShowPopup("操作条件不满足", "当前电机无故障，无需执行故障复位。", "Warning");
             return;
         }
-        if (!RequestConfirmation("纭澶嶄綅", "纭鎵ц鐢垫満鏁呴殰澶嶄綅鍚楋紵")) return;
-        await PulseBooleanTagAsync("Motor1_Reset", "鐢垫満鏁呴殰澶嶄綅杈撳嚭");
+        if (!RequestConfirmation("确认复位", "确认执行电机故障复位吗？")) return;
+        await PulseBooleanTagAsync("Motor1_Reset", "电机故障复位输出");
     }
 
     [RelayCommand]
@@ -1316,11 +1316,11 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
     {
         if (!CanEditParameters) { SystemMessage = "当前权限不足，无法修改参数"; return; }
         var illegal = Parameters.FirstOrDefault(p => !CanEditParameter(p));
-        if (illegal is not null) { SystemMessage = $"瀛樺湪瓒呮潈闄愬弬鏁帮細{illegal.Name}"; return; }
+        if (illegal is not null) { SystemMessage = $"存在超权限参数：{illegal.Name}"; return; }
         var path = Path.Combine(GetProjectRoot(), "config", "parameters.json");
         await _parameterService.SaveAsync(path, Parameters);
-        SystemMessage = $"鍙傛暟宸蹭繚瀛橈細{path}";
-        AddLog("鍙傛暟", SystemMessage, "Info");
+        SystemMessage = $"参数已保存：{path}";
+        AddLog("参数", SystemMessage, "Info");
     }
 
     [RelayCommand]
@@ -1338,8 +1338,8 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
         Parameters.Clear();
         foreach (var item in items) Parameters.Add(item);
         RefreshParameterPermissions();
-        SystemMessage = "鍙傛暟鍔犺浇瀹屾垚";
-        AddLog("鍙傛暟", SystemMessage, "Info");
+        SystemMessage = "参数加载完成";
+        AddLog("参数", SystemMessage, "Info");
     }
 
     [RelayCommand]
@@ -1356,7 +1356,7 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
         }
         RefreshAlarmStatistics();
         SystemMessage = "当前报警已全部确认";
-        AddLog("鎶ヨ", SystemMessage, "Info");
+        AddLog("报警", SystemMessage, "Info");
     }
 
     [RelayCommand]
@@ -1375,7 +1375,7 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
                 Time = DateTime.Now,
                 Level = alarm.Level,
                 Source = alarm.Source,
-                Message = $"宸插浣嶏細{alarm.Message}",
+                Message = $"已复位：{alarm.Message}",
                 Active = false,
                 Acknowledged = true,
                 ClearTime = DateTime.Now,
@@ -1390,7 +1390,7 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
         RefreshAlarmStatistics();
         await SaveAlarmHistoryAsync();
         SystemMessage = "报警已全部复位";
-        AddLog("鎶ヨ", SystemMessage, "Warning");
+        AddLog("报警", SystemMessage, "Warning");
     }
 
     [RelayCommand]
@@ -1398,7 +1398,7 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
     {
         var path = Path.Combine(GetProjectRoot(), "config", "alarm-history.json");
         await _alarmService.SaveHistoryAsync(path, AlarmHistory);
-        SystemMessage = $"鎶ヨ鍘嗗彶宸蹭繚瀛橈細{path}";
+        SystemMessage = $"报警历史已保存：{path}";
     }
 
     [RelayCommand]
@@ -1429,8 +1429,8 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
             IoTableRows = IoTableRows.ToList()
         };
         await _configurationService.SaveAsync(path, config);
-        SystemMessage = $"閰嶇疆宸蹭繚瀛橈細{path}";
-        AddLog("閰嶇疆", SystemMessage, "Info");
+        SystemMessage = $"配置已保存：{path}";
+        AddLog("配置", SystemMessage, "Info");
     }
 
     [RelayCommand]
@@ -1446,7 +1446,7 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
         }
         Tags.Clear(); foreach (var tag in config.Tags) Tags.Add(tag);
         EventBindings.Clear(); foreach (var binding in config.EventBindings) EventBindings.Add(binding);
-        SelectedIoPlcTemplate = string.IsNullOrWhiteSpace(config.IoGeneration?.PlcType) ? "姹囧窛涓瀷PLC" : config.IoGeneration.PlcType;
+        SelectedIoPlcTemplate = string.IsNullOrWhiteSpace(config.IoGeneration?.PlcType) ? "汇川中型PLC" : config.IoGeneration.PlcType;
         IoOperationNumber = string.IsNullOrWhiteSpace(config.IoGeneration?.OperationNumber) ? "OP10" : config.IoGeneration.OperationNumber;
         IoTableRows.Clear();
         foreach (var row in config.IoTableRows ?? new List<IoTableRow>()) IoTableRows.Add(row);
@@ -1454,8 +1454,8 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
         OnPropertyChanged(nameof(TagCount));
         RefreshMonitorView();
         RefreshAlarmStatistics();
-        SystemMessage = "閰嶇疆鍔犺浇瀹屾垚";
-        AddLog("閰嶇疆", SystemMessage, "Info");
+        SystemMessage = "配置加载完成";
+        AddLog("配置", SystemMessage, "Info");
     }
 
     [RelayCommand]
@@ -1464,7 +1464,7 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
         var dialog = new OpenFileDialog
         {
             Title = "导入 IO 表",
-            Filter = "IO 琛?(*.csv;*.txt)|*.csv;*.txt|CSV 鏂囦欢 (*.csv)|*.csv|鏂囨湰鏂囦欢 (*.txt)|*.txt",
+            Filter = "IO 表 (*.csv;*.txt)|*.csv;*.txt|CSV 文件 (*.csv)|*.csv|文本文件 (*.txt)|*.txt",
             CheckFileExists = true
         };
 
@@ -1492,18 +1492,18 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
             GeneratedIoOutputDirectory = string.Empty;
             IsRuntimeMode = false;
             SelectedTabIndex = ResolveTabIndex("设计器");
-        CurrentDesignerSubSection = "手动程序生成";
-            CurrentSection = "鎵嬪姩绋嬪簭鐢熸垚";
+            CurrentDesignerSubSection = "手动程序生成";
+            CurrentSection = "手动程序生成";
             RefreshIoGenerationSummary();
             OnPropertyChanged(nameof(CanSaveIoTable));
-            SystemMessage = $"IO 琛ㄥ鍏ュ畬鎴愶細{Path.GetFileName(dialog.FileName)}";
+            SystemMessage = $"IO 表导入完成：{Path.GetFileName(dialog.FileName)}";
             AddLog("IO 生成", $"{SystemMessage}，共 {importResult.Rows.Count} 行。", "Info");
         }
         catch (Exception ex)
         {
-            SystemMessage = $"IO 琛ㄥ鍏ュけ璐ワ細{ex.Message}";
-            AddLog("IO 鐢熸垚", SystemMessage, "Error");
-            ShowPopup("瀵煎叆澶辫触", ex.Message, "Error");
+            SystemMessage = $"IO 表导入失败：{ex.Message}";
+            AddLog("IO 生成", SystemMessage, "Error");
+            ShowPopup("导入失败", ex.Message, "Error");
         }
     }
 
@@ -1524,8 +1524,8 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
         _lastIoSaveAt = DateTime.MinValue;
         RefreshIoGenerationSummary();
         OnPropertyChanged(nameof(CanSaveIoTable));
-        SystemMessage = "IO 琛ㄥ凡娓呯┖";
-        AddLog("IO 鐢熸垚", SystemMessage, "Warning");
+        SystemMessage = "IO 表已清空";
+        AddLog("IO 生成", SystemMessage, "Warning");
     }
 
     [RelayCommand]
@@ -1777,15 +1777,15 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
             var autoProgram = BuildAutoTemplateProgram(autoTemplate, controlDb, stationNo, orderedNodes);
             var initProgram = BuildInitTemplateProgram(initTemplate, controlDb, stationNo, orderedNodes);
             var chartBuilder = new StringBuilder();
-            chartBuilder.AppendLine($"娴佺▼鍚嶇О锛{AutoProgramName}");
-            chartBuilder.AppendLine($"宸ヤ綅锛{AutoProgramStation}");
-            chartBuilder.AppendLine($"鐢熸垚鏃堕棿锛{DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+            chartBuilder.AppendLine($"流程名称：{AutoProgramName}");
+            chartBuilder.AppendLine($"工位：{AutoProgramStation}");
+            chartBuilder.AppendLine($"生成时间：{DateTime.Now:yyyy-MM-dd HH:mm:ss}");
             chartBuilder.AppendLine();
             foreach (var node in orderedNodes)
             {
                 chartBuilder.AppendLine($"{node.StepCode}  {node.Title}");
-                chartBuilder.AppendLine($"鍔ㄤ綔锛{node.Action}");
-                chartBuilder.AppendLine($"娴佸悜锛{node.NextStep}");
+                chartBuilder.AppendLine($"动作：{node.Action}");
+                chartBuilder.AppendLine($"流向：{node.NextStep}");
                 chartBuilder.AppendLine();
             }
 
@@ -1805,15 +1805,15 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
             SelectedGeneratedAutoProgram = GeneratedAutoPrograms.FirstOrDefault();
             GeneratedAutoOutputDirectory = outputDirectory;
             RefreshAutoProgramSummary();
-            SystemMessage = $"鑷姩绋嬪簭宸茬敓鎴愶細{outputDirectory}";
+            SystemMessage = $"自动程序已生成：{outputDirectory}";
             AddLog("自动程序", $"{AutoProgramName} 已生成 {artifacts.Length} 个文件", "Info");
             await Task.CompletedTask;
         }
         catch (Exception ex)
         {
-            SystemMessage = $"鑷姩绋嬪簭鐢熸垚澶辫触锛{ex.Message}";
-            AddLog("鑷姩绋嬪簭", SystemMessage, "Error");
-            ShowPopup("鐢熸垚澶辫触", ex.Message, "Error");
+            SystemMessage = $"自动程序生成失败：{ex.Message}";
+            AddLog("自动程序", SystemMessage, "Error");
+            ShowPopup("生成失败", ex.Message, "Error");
         }
     }
 
@@ -1826,9 +1826,9 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
         }
         catch (Exception ex)
         {
-            SystemMessage = $"鎵撳紑鐢熸垚鐩綍澶辫触锛{ex.Message}";
-            AddLog("IO 鐢熸垚", SystemMessage, "Error");
-            ShowPopup("鎵撳紑澶辫触", ex.Message, "Error");
+            SystemMessage = $"打开生成目录失败：{ex.Message}";
+            AddLog("IO 生成", SystemMessage, "Error");
+            ShowPopup("打开失败", ex.Message, "Error");
         }
     }
 
@@ -1841,9 +1841,9 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
         }
         catch (Exception ex)
         {
-            SystemMessage = $"鎵撳紑鑷姩绋嬪簭鐩綍澶辫触锛{ex.Message}";
-            AddLog("鑷姩绋嬪簭", SystemMessage, "Error");
-            ShowPopup("鎵撳紑澶辫触", ex.Message, "Error");
+            SystemMessage = $"打开自动程序目录失败：{ex.Message}";
+            AddLog("自动程序", SystemMessage, "Error");
+            ShowPopup("打开失败", ex.Message, "Error");
         }
     }
 
@@ -1865,8 +1865,8 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
         }
         catch (Exception ex)
         {
-            SystemMessage = $"鎵撳紑绋嬪簭鏂囦欢澶辫触锛{ex.Message}";
-            AddLog("IO 鐢熸垚", SystemMessage, "Error");
+            SystemMessage = $"打开程序文件失败：{ex.Message}";
+            AddLog("IO 生成", SystemMessage, "Error");
         }
     }
 
@@ -2741,14 +2741,14 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
                             || (binding.TriggerCondition.Equals("True", StringComparison.OrdinalIgnoreCase) && tag.CurrentValue.Equals("True", StringComparison.OrdinalIgnoreCase));
             if (!triggered) continue;
             if (tag.IsAlarm) RaiseOrUpdateAlarm(tag.Name, binding.EventName, binding.ActionParameter);
-            else Logs.Insert(0, new AlarmRecord { Time = DateTime.Now, Level = "Info", Source = tag.Name, Message = $"浜嬩欢 {binding.EventName} -> {binding.ActionTarget} {binding.ActionParameter}", Active = false, Acknowledged = true, State = "Logged", Count = 1 });
+            else Logs.Insert(0, new AlarmRecord { Time = DateTime.Now, Level = "Info", Source = tag.Name, Message = $"事件 {binding.EventName} -> {binding.ActionTarget} {binding.ActionParameter}", Active = false, Acknowledged = true, State = "Logged", Count = 1 });
         }
     }
 
     private void EvaluateTagState(TagItem tag)
     {
         if (!tag.IsAlarm) return;
-        if (string.Equals(tag.CurrentValue, "True", StringComparison.OrdinalIgnoreCase)) RaiseOrUpdateAlarm(tag.Name, tag.Name, "鎶ヨ瑙﹀彂");
+        if (string.Equals(tag.CurrentValue, "True", StringComparison.OrdinalIgnoreCase)) RaiseOrUpdateAlarm(tag.Name, tag.Name, "报警触发");
         else ClearAlarm(tag.Name);
     }
 
@@ -2785,7 +2785,7 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
         CurrentAlarms.Insert(0, alarm);
         AlarmHistory.Insert(0, new AlarmRecord { Time = alarm.Time, Level = alarm.Level, Source = alarm.Source, Message = alarm.Message, Active = true, Acknowledged = false, State = "Raised", Count = alarm.Count, HandlingSuggestion = alarm.HandlingSuggestion, CauseArchive = alarm.CauseArchive });
         _activeAlarmMap[key] = alarm;
-        Logs.Insert(0, new AlarmRecord { Time = DateTime.Now, Level = "Warning", Source = source, Message = $"鎶ヨ瑙﹀彂锛{alarm.Message}", Active = false, Acknowledged = true, State = "Logged", Count = 1 });
+        Logs.Insert(0, new AlarmRecord { Time = DateTime.Now, Level = "Warning", Source = source, Message = $"报警触发：{alarm.Message}", Active = false, Acknowledged = true, State = "Logged", Count = 1 });
         OnPropertyChanged(nameof(AlarmCount));
         RefreshAlarmStatistics();
     }
@@ -2800,8 +2800,8 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
             alarm.ClearTime = DateTime.Now;
             alarm.State = alarm.Acknowledged ? "Cleared" : "Cleared-UnAck";
             CurrentAlarms.Remove(alarm);
-            AlarmHistory.Insert(0, new AlarmRecord { Time = alarm.Time, Level = alarm.Level, Source = alarm.Source, Message = $"鎭㈠锛{alarm.Message}", Active = false, Acknowledged = alarm.Acknowledged, AcknowledgedBy = alarm.AcknowledgedBy, ClearTime = DateTime.Now, State = "Cleared", Count = alarm.Count, HandlingSuggestion = alarm.HandlingSuggestion, CauseArchive = alarm.CauseArchive });
-            Logs.Insert(0, new AlarmRecord { Time = DateTime.Now, Level = "Info", Source = source, Message = $"鎶ヨ鎭㈠锛{alarm.Message}", Active = false, Acknowledged = true, State = "Logged", Count = 1 });
+            AlarmHistory.Insert(0, new AlarmRecord { Time = alarm.Time, Level = alarm.Level, Source = alarm.Source, Message = $"恢复：{alarm.Message}", Active = false, Acknowledged = alarm.Acknowledged, AcknowledgedBy = alarm.AcknowledgedBy, ClearTime = DateTime.Now, State = "Cleared", Count = alarm.Count, HandlingSuggestion = alarm.HandlingSuggestion, CauseArchive = alarm.CauseArchive });
+            Logs.Insert(0, new AlarmRecord { Time = DateTime.Now, Level = "Info", Source = source, Message = $"报警恢复：{alarm.Message}", Active = false, Acknowledged = true, State = "Logged", Count = 1 });
             _activeAlarmMap.Remove(key);
         }
         OnPropertyChanged(nameof(AlarmCount));
@@ -3508,7 +3508,7 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
         var prefix = ResolveImportedCylinderPrefix();
         if (string.IsNullOrWhiteSpace(prefix))
         {
-            return "澶圭揣姘旂几 CY01";
+            return "夹紧气缸 CY01";
         }
 
         var commentTag = FindImportedCylinderTag(".Parm.Comment");
@@ -3519,7 +3519,7 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
 
         var indexMarker = prefix.LastIndexOf('[');
         var normalized = prefix.Replace("Application.", string.Empty, StringComparison.OrdinalIgnoreCase);
-        return indexMarker >= 0 ? $"姘旂几 {normalized[indexMarker..]}" : normalized;
+        return indexMarker >= 0 ? $"气缸 {normalized[indexMarker..]}" : normalized;
     }
 
     private void AddTag(TagItem tag) => Tags.Add(tag);
@@ -3546,7 +3546,7 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
     private string BuildFlowRankingSummary()
     {
         var source = FlowSteps.AsEnumerable();
-        if (!source.Any()) return "鏆傛棤娴佺▼鎺掕鏁版嵁";
+        if (!source.Any()) return "暂无流程排行数据";
 
         var topAvgCycle = source.GroupBy(x => x.FlowName)
             .Select(g => new { Name = g.Key, Avg = g.Average(x => x.DurationSeconds) })
@@ -3561,7 +3561,7 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
 
         var longestSingle = source.OrderByDescending(x => x.DurationSeconds).FirstOrDefault();
 
-        return $"骞冲潎鑺傛媿鏈€闀匡細{topAvgCycle?.Name ?? "--"} {topAvgCycle?.Avg:F2}s | 鏈€澶氭姤璀︽搴忥細STEP {topAlarmStep?.Step ?? 0:000} {topAlarmStep?.Count ?? 0}娆?| 鏈€闀垮崱姝ワ細{longestSingle?.FlowName ?? "--"} STEP {longestSingle?.StepNo ?? 0:000} {longestSingle?.DurationSeconds ?? 0:F2}s";
+        return $"平均节拍最长：{topAvgCycle?.Name ?? "--"} {topAvgCycle?.Avg:F2}s | 最多报警步骤：STEP {topAlarmStep?.Step ?? 0:000} {topAlarmStep?.Count ?? 0}次 | 最长卡步：{longestSingle?.FlowName ?? "--"} STEP {longestSingle?.StepNo ?? 0:000} {longestSingle?.DurationSeconds ?? 0:F2}s";
     }
 
     private string ResolveCylinderCurrentStateText()
