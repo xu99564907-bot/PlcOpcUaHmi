@@ -39,6 +39,10 @@ public partial class MainViewModel : ObservableObject
     private readonly TrendHistoryService _trendHistoryService = new();
     private readonly DispatcherTimer _subscriptionTimer;
     private readonly DispatcherTimer _opcUaBrowserRefreshTimer;
+    private readonly object _ioTableRowsSync = new();
+    private readonly object _generatedIoProgramsSync = new();
+    private readonly object _manualCylinderBlocksSync = new();
+    private readonly object _logsSync = new();
     private readonly Dictionary<string, AlarmRecord> _activeAlarmMap = new(StringComparer.OrdinalIgnoreCase);
     private NamingRulesConfig _namingRules = NamingRulesConfig.CreateDefault();
     private string _currentIoSourceFilePath = string.Empty;
@@ -218,6 +222,10 @@ public partial class MainViewModel : ObservableObject
     public MainViewModel()
     {
         BuildNavigation();
+        BindingOperations.EnableCollectionSynchronization(IoTableRows, _ioTableRowsSync);
+        BindingOperations.EnableCollectionSynchronization(GeneratedIoPrograms, _generatedIoProgramsSync);
+        BindingOperations.EnableCollectionSynchronization(ManualCylinderBlocks, _manualCylinderBlocksSync);
+        BindingOperations.EnableCollectionSynchronization(Logs, _logsSync);
         DesignerElements.CollectionChanged += DesignerElements_CollectionChanged;
         DesignerPages.CollectionChanged += DesignerPages_CollectionChanged;
         Parameters.CollectionChanged += Parameters_CollectionChanged;
@@ -1761,7 +1769,7 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
         var dialog = new OpenFileDialog
         {
             Title = "导入 IO 表",
-            Filter = "IO 表 (*.csv;*.txt)|*.csv;*.txt|CSV 文件 (*.csv)|*.csv|文本文件 (*.txt)|*.txt",
+            Filter = "IO 表 (*.xlsx;*.csv;*.txt)|*.xlsx;*.csv;*.txt|Excel 文件 (*.xlsx)|*.xlsx|CSV 文件 (*.csv)|*.csv|文本文件 (*.txt)|*.txt",
             CheckFileExists = true
         };
 
@@ -1889,10 +1897,16 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
     {
         return rows.Select(row => new IoTableRow
         {
+            InputModule = row.InputModule,
             InputAddress = row.InputAddress,
+            InputStation = row.InputStation,
             InputComment = row.InputComment,
+            InputRemark = row.InputRemark,
+            OutputModule = row.OutputModule,
             OutputAddress = row.OutputAddress,
-            OutputComment = row.OutputComment
+            OutputStation = row.OutputStation,
+            OutputComment = row.OutputComment,
+            OutputRemark = row.OutputRemark
         }).ToList();
     }
 
@@ -2003,8 +2017,9 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
                 await SaveIoTableToSourceAsync();
             }
 
+            var ioRowsSnapshot = CloneIoRows(IoTableRows);
             var result = await _ioProgramGenerationService.GenerateAsync(
-                IoTableRows,
+                ioRowsSnapshot,
                 new IoGenerationSettings
                 {
                     PlcType = SelectedIoPlcTemplate,
@@ -2012,15 +2027,31 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
                 },
                 GetApplicationRoot());
 
-            GeneratedIoPrograms.Clear();
-            foreach (var artifact in result.Artifacts) GeneratedIoPrograms.Add(artifact);
-            SelectedGeneratedIoProgram = GeneratedIoPrograms.FirstOrDefault();
-            GeneratedIoOutputDirectory = result.OutputDirectory;
-            RebuildManualCylinderBlocksFromIo();
+            await RunOnUiThreadAsync(() =>
+            {
+                GeneratedIoPrograms.Clear();
+                foreach (var artifact in result.Artifacts)
+                {
+                    GeneratedIoPrograms.Add(artifact);
+                }
+
+                SelectedGeneratedIoProgram = GeneratedIoPrograms.FirstOrDefault();
+                GeneratedIoOutputDirectory = result.OutputDirectory;
+                RefreshIoGenerationSummary(result);
+                SystemMessage = $"IO 程序已生成：{result.OutputDirectory}";
+                AddLog("IO 生成", $"{SystemMessage}（输入 {result.InputCount} / 输出 {result.OutputCount}）", "Info");
+            });
+
+            try
+            {
+                await RunOnUiThreadAsync(RebuildManualCylinderBlocksFromIo);
+            }
+            catch (Exception ex)
+            {
+                AddLog("IO 生成", $"气缸块刷新失败：{ex.Message}", "Warning");
+            }
+
             await PersistConfigAsync(updateStatus: false);
-            RefreshIoGenerationSummary(result);
-            SystemMessage = $"IO 程序已生成：{result.OutputDirectory}";
-            AddLog("IO 生成", $"{SystemMessage}（输入 {result.InputCount} / 输出 {result.OutputCount}）", "Info");
         }
         catch (Exception ex)
         {
@@ -4655,6 +4686,12 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
 
     private void AddLog(string source, string message, string level)
     {
+        if (System.Windows.Application.Current?.Dispatcher is { } dispatcher && !dispatcher.CheckAccess())
+        {
+            dispatcher.Invoke(() => AddLog(source, message, level));
+            return;
+        }
+
         Logs.Insert(0, new AlarmRecord { Time = DateTime.Now, Source = source, Message = message, Level = level, Active = false, Acknowledged = true, State = "Logged", Count = 1 });
         OnPropertyChanged(nameof(FocusAlarmHint));
     }
@@ -4924,6 +4961,12 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
 
     private void ManualCylinderBlocks_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
+        if (System.Windows.Application.Current?.Dispatcher is { } dispatcher && !dispatcher.CheckAccess())
+        {
+            dispatcher.Invoke(() => ManualCylinderBlocks_CollectionChanged(sender, e));
+            return;
+        }
+
         if (e.NewItems is not null)
         {
             foreach (var item in e.NewItems.OfType<ManualCylinderBlockItem>())
@@ -4946,6 +4989,12 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
 
     private void ManualCylinderBlockItem_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (System.Windows.Application.Current?.Dispatcher is { } dispatcher && !dispatcher.CheckAccess())
+        {
+            dispatcher.Invoke(() => ManualCylinderBlockItem_PropertyChanged(sender, e));
+            return;
+        }
+
         if (sender is ManualCylinderBlockItem block && e.PropertyName == nameof(ManualCylinderBlockItem.DisplayName))
         {
             var isVertical = IsVerticalCylinderName(block.DisplayName);
@@ -4988,17 +5037,20 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
 
         foreach (var cylinder in cylinders.OrderBy(item => item.CylinderIndex))
         {
-            if (existingBlocks.TryGetValue(cylinder.CylinderIndex, out var existing))
+            try
             {
-                cylinder.DisplayOrder = existing.DisplayOrder;
-                if (!string.IsNullOrWhiteSpace(existing.DisplayName) && !IsLegacyCylinderPresentation(existing))
+                if (existingBlocks.TryGetValue(cylinder.CylinderIndex, out var existing))
                 {
-                    cylinder.DisplayName = existing.DisplayName;
+                    cylinder.DisplayOrder = existing.DisplayOrder;
                 }
-            }
 
-            ManualCylinderBlocks.Add(cylinder);
-            EnsureCylinderTagsForBlock(cylinder);
+                ManualCylinderBlocks.Add(cylinder);
+                EnsureCylinderTagsForBlock(cylinder);
+            }
+            catch (Exception ex)
+            {
+                AddLog("气缸块", $"重建 CY{cylinder.CylinderIndex:00} 失败：{ex.Message}", "Warning");
+            }
         }
 
         RefreshManualCylinderBlockStates();
@@ -5049,31 +5101,35 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
             .ThenBy(item => item.CylinderIndex)
             .ToList();
 
-        if (restoredBlocks.Count > 0)
+        var extractedDefinitions = ExtractCylinderDefinitionsFromIo()
+            .GroupBy(item => item.CylinderIndex)
+            .ToDictionary(group => group.Key, group => group.First());
+
+        if (extractedDefinitions.Count > 0)
         {
-            var extractedDefinitions = ExtractCylinderDefinitionsFromIo()
-                .GroupBy(item => item.CylinderIndex)
-                .ToDictionary(group => group.Key, group => group.First());
-
-            foreach (var block in restoredBlocks)
+            var restoredMap = restoredBlocks.ToDictionary(item => item.CylinderIndex, item => item);
+            foreach (var block in extractedDefinitions.Values
+                .OrderBy(item => restoredMap.TryGetValue(item.CylinderIndex, out var restored) ? restored.DisplayOrder : item.DisplayOrder)
+                .ThenBy(item => item.CylinderIndex))
             {
-                if (extractedDefinitions.TryGetValue(block.CylinderIndex, out var extracted))
+                if (restoredMap.TryGetValue(block.CylinderIndex, out var restored))
                 {
-                    if (IsLegacyCylinderPresentation(block))
-                    {
-                        block.DisplayName = extracted.DisplayName;
-                    }
-
-                    block.HomeCommandDisplayName = string.IsNullOrWhiteSpace(block.HomeCommandDisplayName) ? extracted.HomeCommandDisplayName : block.HomeCommandDisplayName;
-                    block.WorkCommandDisplayName = string.IsNullOrWhiteSpace(block.WorkCommandDisplayName) ? extracted.WorkCommandDisplayName : block.WorkCommandDisplayName;
-                    block.HomeSensorDisplayName = string.IsNullOrWhiteSpace(block.HomeSensorDisplayName) ? extracted.HomeSensorDisplayName : block.HomeSensorDisplayName;
-                    block.WorkSensorDisplayName = string.IsNullOrWhiteSpace(block.WorkSensorDisplayName) ? extracted.WorkSensorDisplayName : block.WorkSensorDisplayName;
-                    block.HomeCommandAddress = string.IsNullOrWhiteSpace(block.HomeCommandAddress) ? extracted.HomeCommandAddress : block.HomeCommandAddress;
-                    block.WorkCommandAddress = string.IsNullOrWhiteSpace(block.WorkCommandAddress) ? extracted.WorkCommandAddress : block.WorkCommandAddress;
-                    block.HomeSensorAddress = string.IsNullOrWhiteSpace(block.HomeSensorAddress) ? extracted.HomeSensorAddress : block.HomeSensorAddress;
-                    block.WorkSensorAddress = string.IsNullOrWhiteSpace(block.WorkSensorAddress) ? extracted.WorkSensorAddress : block.WorkSensorAddress;
+                    block.DisplayOrder = restored.DisplayOrder;
                 }
 
+                block.IsVerticalNaming = IsVerticalCylinderName(block.DisplayName);
+                ManualCylinderBlocks.Add(block);
+                EnsureCylinderTagsForBlock(block);
+            }
+
+            RefreshManualCylinderBlockStates();
+            return;
+        }
+
+        if (restoredBlocks.Count > 0)
+        {
+            foreach (var block in restoredBlocks)
+            {
                 block.IsVerticalNaming = IsVerticalCylinderName(block.DisplayName);
                 ManualCylinderBlocks.Add(block);
                 EnsureCylinderTagsForBlock(block);
@@ -5206,7 +5262,7 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
         var text = (comment ?? string.Empty).Trim();
         var separatorIndex = FindLastConfiguredSeparatorIndex(text);
         var displayName = separatorIndex > 0 ? text[..separatorIndex] : text;
-        return NormalizeGroupedCylinderSuffix(displayName);
+        return NormalizeCylinderDisplayName(displayName);
     }
 
     private string ExtractCylinderMotionLabel(string comment)
@@ -5302,6 +5358,18 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
         return occurrenceIndex;
     }
 
+    private static async Task RunOnUiThreadAsync(Action action)
+    {
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher is null || dispatcher.CheckAccess())
+        {
+            action();
+            return;
+        }
+
+        await dispatcher.InvokeAsync(action);
+    }
+
     private string NormalizeGroupedCylinderSuffix(string displayName)
     {
         if (string.IsNullOrWhiteSpace(displayName))
@@ -5319,6 +5387,32 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
         }
 
         return displayName;
+    }
+
+    private string NormalizeCylinderDisplayName(string displayName)
+    {
+        if (string.IsNullOrWhiteSpace(displayName))
+        {
+            return displayName;
+        }
+
+        var normalized = NormalizeGroupedCylinderSuffix(displayName.Trim());
+        normalized = Regex.Replace(normalized, @"(CY\d{1,3})_\d+$", "$1", RegexOptions.IgnoreCase);
+
+        var segments = _namingRules.Cylinder.SegmentSeparators
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Aggregate(
+                new List<string> { normalized },
+                (current, separator) => current
+                    .SelectMany(part => part.Split(separator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                    .ToList());
+
+        var coreSegment = segments.FirstOrDefault(segment => Regex.IsMatch(segment, @"CY\d{1,3}", RegexOptions.IgnoreCase))
+            ?? segments.LastOrDefault(segment => !string.IsNullOrWhiteSpace(segment))
+            ?? normalized;
+
+        coreSegment = Regex.Replace(coreSegment, @"(CY\d{1,3})_\d+$", "$1", RegexOptions.IgnoreCase);
+        return coreSegment.Trim();
     }
 
     private static string AppendAddress(string current, string address)
