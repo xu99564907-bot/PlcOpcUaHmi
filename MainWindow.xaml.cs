@@ -251,6 +251,13 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (FindAncestor<DataGrid>(source) == IoPreviewDataGrid
+            || FindAncestor<TextBox>(source) == IoProgramPreviewTextBox
+            || FindAncestor<TextBox>(source) == AutoProgramPreviewTextBox)
+        {
+            return;
+        }
+
         var scrollViewer = FindScrollableAncestor(source, e.Delta);
         if (scrollViewer is null)
         {
@@ -309,6 +316,31 @@ public partial class MainWindow : Window
         return null;
     }
 
+    private static T? FindDescendant<T>(DependencyObject? current) where T : DependencyObject
+    {
+        if (current is null)
+        {
+            return null;
+        }
+
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(current); i++)
+        {
+            var child = VisualTreeHelper.GetChild(current, i);
+            if (child is T match)
+            {
+                return match;
+            }
+
+            var nested = FindDescendant<T>(child);
+            if (nested is not null)
+            {
+                return nested;
+            }
+        }
+
+        return null;
+    }
+
     private static ScrollViewer? FindScrollableAncestor(DependencyObject? current, int delta)
     {
         while (current is not null)
@@ -328,6 +360,64 @@ public partial class MainWindow : Window
         }
 
         return null;
+    }
+
+    private void IoPreviewDataGrid_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (sender is not DataGrid dataGrid)
+        {
+            return;
+        }
+
+        var scrollViewer = FindDescendant<ScrollViewer>(dataGrid);
+        if (scrollViewer is null || scrollViewer.ScrollableHeight <= 0)
+        {
+            return;
+        }
+
+        var stepCount = 8;
+        for (var i = 0; i < stepCount; i++)
+        {
+            if (e.Delta < 0)
+            {
+                scrollViewer.LineDown();
+            }
+            else
+            {
+                scrollViewer.LineUp();
+            }
+        }
+
+        e.Handled = true;
+    }
+
+    private void CodePreviewTextBox_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (sender is not TextBox textBox)
+        {
+            return;
+        }
+
+        var scrollViewer = FindDescendant<ScrollViewer>(textBox);
+        if (scrollViewer is null || scrollViewer.ScrollableHeight <= 0)
+        {
+            return;
+        }
+
+        var stepCount = 8;
+        for (var i = 0; i < stepCount; i++)
+        {
+            if (e.Delta < 0)
+            {
+                textBox.LineDown();
+            }
+            else
+            {
+                textBox.LineUp();
+            }
+        }
+
+        e.Handled = true;
     }
 
     private void ToolboxItem_PreviewMouseMove(object sender, MouseEventArgs e)
@@ -767,10 +857,10 @@ public partial class MainWindow : Window
             BorderBrush = System.Windows.Media.Brushes.LightGray,
             ItemsSource = vm.IoTableRows
         };
-        previewGrid.Columns.Add(new DataGridTextColumn { Header = "杈撳叆鍦板潃", Binding = new System.Windows.Data.Binding("InputAddress"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
-        previewGrid.Columns.Add(new DataGridTextColumn { Header = "杈撳叆娉ㄩ噴", Binding = new System.Windows.Data.Binding("InputComment"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
-        previewGrid.Columns.Add(new DataGridTextColumn { Header = "杈撳嚭鍦板潃", Binding = new System.Windows.Data.Binding("OutputAddress"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
-        previewGrid.Columns.Add(new DataGridTextColumn { Header = "杈撳嚭娉ㄩ噴", Binding = new System.Windows.Data.Binding("OutputComment"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
+        previewGrid.Columns.Add(new DataGridTextColumn { Header = "输入地址", Binding = new System.Windows.Data.Binding("InputAddress"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
+        previewGrid.Columns.Add(new DataGridTextColumn { Header = "输入注释", Binding = new System.Windows.Data.Binding("InputComment"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
+        previewGrid.Columns.Add(new DataGridTextColumn { Header = "输出地址", Binding = new System.Windows.Data.Binding("OutputAddress"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
+        previewGrid.Columns.Add(new DataGridTextColumn { Header = "输出注释", Binding = new System.Windows.Data.Binding("OutputComment"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
         ShowPreviewWindow("IO 表预览", previewGrid, 1200, 760);
     }
 
@@ -801,8 +891,8 @@ public partial class MainWindow : Window
         };
 
         var title = vm.SelectedGeneratedIoProgram?.DisplayName is { Length: > 0 } displayName
-            ? $"绋嬪簭棰勮 - {displayName}"
-            : "绋嬪簭棰勮";
+            ? $"程序预览 - {displayName}"
+            : "程序预览";
         ShowPreviewWindow(title, previewTextBox, 1100, 760);
     }
 

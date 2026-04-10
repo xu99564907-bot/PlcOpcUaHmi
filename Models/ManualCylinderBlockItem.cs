@@ -86,6 +86,12 @@ public partial class ManualCylinderBlockItem : ObservableObject
     private bool workCommandActive;
 
     [ObservableProperty]
+    private bool errorActive;
+
+    [ObservableProperty]
+    private string errorIdText = "0";
+
+    [ObservableProperty]
     private string statusText = "待机";
 
     [ObservableProperty]
@@ -110,17 +116,26 @@ public partial class ManualCylinderBlockItem : ObservableObject
         ? HomeSensorDisplayName
         : IsVerticalNaming ? "下降到位" : "缩回到位";
 
+    public string WorkInterlockLabel => $"{WorkCommandLabel}互锁";
+
+    public string HomeInterlockLabel => $"{HomeCommandLabel}互锁";
+
     partial void OnDisplayNameChanged(string value)
     {
-        OnPropertyChanged(nameof(WorkCommandLabel));
-        OnPropertyChanged(nameof(HomeCommandLabel));
-        OnPropertyChanged(nameof(WorkPositionLabel));
-        OnPropertyChanged(nameof(HomePositionLabel));
+        NotifyCylinderLabelsChanged();
     }
 
-    partial void OnWorkCommandDisplayNameChanged(string value) => OnPropertyChanged(nameof(WorkCommandLabel));
+    partial void OnWorkCommandDisplayNameChanged(string value)
+    {
+        OnPropertyChanged(nameof(WorkCommandLabel));
+        OnPropertyChanged(nameof(WorkInterlockLabel));
+    }
 
-    partial void OnHomeCommandDisplayNameChanged(string value) => OnPropertyChanged(nameof(HomeCommandLabel));
+    partial void OnHomeCommandDisplayNameChanged(string value)
+    {
+        OnPropertyChanged(nameof(HomeCommandLabel));
+        OnPropertyChanged(nameof(HomeInterlockLabel));
+    }
 
     partial void OnWorkSensorDisplayNameChanged(string value) => OnPropertyChanged(nameof(WorkPositionLabel));
 
@@ -128,9 +143,16 @@ public partial class ManualCylinderBlockItem : ObservableObject
 
     partial void OnIsVerticalNamingChanged(bool value)
     {
+        NotifyCylinderLabelsChanged();
+    }
+
+    private void NotifyCylinderLabelsChanged()
+    {
         OnPropertyChanged(nameof(WorkCommandLabel));
         OnPropertyChanged(nameof(HomeCommandLabel));
         OnPropertyChanged(nameof(WorkPositionLabel));
         OnPropertyChanged(nameof(HomePositionLabel));
+        OnPropertyChanged(nameof(WorkInterlockLabel));
+        OnPropertyChanged(nameof(HomeInterlockLabel));
     }
 }

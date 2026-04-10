@@ -23,6 +23,10 @@ namespace PlcOpcUaHmi.ViewModels;
 
 public partial class MainViewModel : ObservableObject
 {
+    private static readonly Regex OperationNumberPattern = new(@"\bOP\s*0*(\d{1,3})\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex DbNumberPattern = new(@"\bDB\s*0*(\d{3,5})\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex CylinderRootPattern = new(@"\.CylCtrl\[(\d+)\]", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
     private readonly OpcUaService _opcUaService = new();
     private readonly CsvImportService _csvImportService = new();
     private readonly XmlImportService _xmlImportService = new();
@@ -43,6 +47,9 @@ public partial class MainViewModel : ObservableObject
     private readonly object _generatedIoProgramsSync = new();
     private readonly object _manualCylinderBlocksSync = new();
     private readonly object _logsSync = new();
+    private int _controlDbMultiplier = 100;
+    private int _controlDbOffset;
+    private int _driveDbOffset = 50;
     private readonly Dictionary<string, AlarmRecord> _activeAlarmMap = new(StringComparer.OrdinalIgnoreCase);
     private NamingRulesConfig _namingRules = NamingRulesConfig.CreateDefault();
     private string _currentIoSourceFilePath = string.Empty;
@@ -143,7 +150,7 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private bool enableGridSnap = true;
     [ObservableProperty] private int gridSize = 10;
     [ObservableProperty] private bool autoRefreshEnabled = true;
-    [ObservableProperty] private int refreshIntervalMs = 1000;
+    [ObservableProperty] private int refreshIntervalMs = 300;
     [ObservableProperty] private bool useOpcSubscription = true;
     [ObservableProperty] private string selectedRuntimeTemplate = "主界面";
     [ObservableProperty] private UserRole currentUserRole = UserRole.Operator;
@@ -352,8 +359,8 @@ public partial class MainViewModel : ObservableObject
     public string SelectedCylinderWorkSensorBinding => SelectedCylinderSettingsBlock?.WorkSensorTagName ?? CylinderWorkSensorTagName;
     public string SelectedCylinderHomeInterlockBinding => SelectedCylinderSettingsBlock?.HomeInterlockTagName ?? CylinderHomeInterlockTagName;
     public string SelectedCylinderWorkInterlockBinding => SelectedCylinderSettingsBlock?.WorkInterlockTagName ?? CylinderWorkInterlockTagName;
-    public string SelectedCylinderHomeDisplayBinding => GetSelectedCylinderDisplayTagName("Value_Home");
-    public string SelectedCylinderWorkDisplayBinding => GetSelectedCylinderDisplayTagName("Value_Work");
+    public string SelectedCylinderHomeDisplayBinding => GetSelectedCylinderDisplayTagName("DevStatus.Valve_Home");
+    public string SelectedCylinderWorkDisplayBinding => GetSelectedCylinderDisplayTagName("DevStatus.Valve_Work");
     public string SelectedCylinderHomeDisplayFallbackBinding => GetSelectedCylinderDisplayTagName("DevStatus.Valve_Home");
     public string SelectedCylinderWorkDisplayFallbackBinding => GetSelectedCylinderDisplayTagName("DevStatus.Valve_Work");
     public string SelectedCylinderDisableHomeBinding => GetSelectedCylinderParmTagName("DisableHome");
@@ -605,7 +612,11 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
         RefreshProgramMonitorTrace();
     }
     partial void OnSelectedIoPlcTemplateChanged(string value) => OnPropertyChanged(nameof(IoGenerationHeadline));
-    partial void OnIoOperationNumberChanged(string value) => OnPropertyChanged(nameof(IoGenerationHeadline));
+    partial void OnIoOperationNumberChanged(string value)
+    {
+        OnPropertyChanged(nameof(IoGenerationHeadline));
+        RebindCylinderDbByOperation();
+    }
     partial void OnAutoProgramNameChanged(string value) => OnPropertyChanged(nameof(AutoProgramHeadline));
     partial void OnAutoProgramStationChanged(string value) => OnPropertyChanged(nameof(AutoProgramHeadline));
     partial void OnCylinderHomeMaskEnabledChanged(bool value) => OnPropertyChanged(nameof(CylinderHomeMaskButtonText));
@@ -706,6 +717,37 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
         OnPropertyChanged(nameof(SelectedCylinderWorkDisplayValue));
         OnPropertyChanged(nameof(SelectedCylinderHomeDisplayFallbackValue));
         OnPropertyChanged(nameof(SelectedCylinderWorkDisplayFallbackValue));
+    }
+
+    private IEnumerable<TagItem> GetRealtimeSubscriptionTags()
+    {
+        // Prefer tags that are in Cylinder category, or have common cylinder-related names
+        foreach (var tag in Tags)
+        {
+            if (string.Equals(tag.Category, "Cylinder", StringComparison.OrdinalIgnoreCase))
+            {
+                yield return tag;
+                continue;
+            }
+
+            if (!string.IsNullOrWhiteSpace(tag.Name) && (
+                tag.Name.StartsWith("Cylinder_", StringComparison.OrdinalIgnoreCase)
+                || tag.Name.IndexOf("Cmd.Manu", StringComparison.OrdinalIgnoreCase) >= 0
+                || tag.Name.IndexOf("DevStatus", StringComparison.OrdinalIgnoreCase) >= 0
+                || tag.Name.IndexOf("Valve", StringComparison.OrdinalIgnoreCase) >= 0))
+            {
+                yield return tag;
+                continue;
+            }
+
+            if (!string.IsNullOrWhiteSpace(tag.NodeId) && (
+                tag.NodeId.IndexOf("Cylinder", StringComparison.OrdinalIgnoreCase) >= 0
+                || tag.NodeId.IndexOf("Cmd.Manu", StringComparison.OrdinalIgnoreCase) >= 0
+                || tag.NodeId.IndexOf("DevStatus", StringComparison.OrdinalIgnoreCase) >= 0))
+            {
+                yield return tag;
+            }
+        }
     }
 
     private void LoadSelectedCylinderParmSettings()
@@ -1752,9 +1794,13 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
         EventBindings.Clear(); foreach (var binding in config.EventBindings) EventBindings.Add(binding);
         SelectedIoPlcTemplate = string.IsNullOrWhiteSpace(config.IoGeneration?.PlcType) ? "汇川中型PLC" : config.IoGeneration.PlcType;
         IoOperationNumber = string.IsNullOrWhiteSpace(config.IoGeneration?.OperationNumber) ? "OP10" : config.IoGeneration.OperationNumber;
+        _controlDbMultiplier = config.IoGeneration?.ControlDbMultiplier > 0 ? config.IoGeneration.ControlDbMultiplier : 100;
+        _controlDbOffset = config.IoGeneration?.ControlDbOffset ?? 0;
+        _driveDbOffset = config.IoGeneration?.DriveDbOffset ?? 50;
         IoTableRows.Clear();
         foreach (var row in config.IoTableRows ?? new List<IoTableRow>()) IoTableRows.Add(row);
         RestoreManualCylinderBlocks(config.ManualCylinderBlocks);
+        RebindCylinderDbByOperation();
         RefreshIoGenerationSummary();
         OnPropertyChanged(nameof(TagCount));
         RefreshMonitorView();
@@ -1783,6 +1829,13 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
             var importResult = await _ioTableImportService.ImportAsync(dialog.FileName);
             IoTableRows.Clear();
             foreach (var row in importResult.Rows) IoTableRows.Add(row);
+
+            var inferredOperationNumber = InferOperationNumberFromIoRows(importResult.Rows);
+            if (!string.IsNullOrWhiteSpace(inferredOperationNumber))
+            {
+                IoOperationNumber = inferredOperationNumber;
+            }
+
             _currentIoSourceFilePath = importResult.SourceFilePath;
             _currentIoSourceEncodingCodePage = importResult.EncodingCodePage;
             _currentIoSourceHeaders = importResult.Headers;
@@ -1803,6 +1856,10 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
             OnPropertyChanged(nameof(CanSaveIoTable));
             SystemMessage = $"IO 表导入完成：{Path.GetFileName(dialog.FileName)}";
             AddLog("IO 生成", $"{SystemMessage}，共 {importResult.Rows.Count} 行。", "Info");
+            if (!string.IsNullOrWhiteSpace(inferredOperationNumber))
+            {
+                AddLog("IO 生成", $"已根据导入内容自动绑定工位号：{inferredOperationNumber}（对应 DB{ResolveOperationBaseNumber(inferredOperationNumber)}）", "Info");
+            }
         }
         catch (Exception ex)
         {
@@ -2023,7 +2080,10 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
                 new IoGenerationSettings
                 {
                     PlcType = SelectedIoPlcTemplate,
-                    OperationNumber = IoOperationNumber
+                    OperationNumber = IoOperationNumber,
+                    ControlDbMultiplier = _controlDbMultiplier,
+                    ControlDbOffset = _controlDbOffset,
+                    DriveDbOffset = _driveDbOffset
                 },
                 GetApplicationRoot());
 
@@ -2628,13 +2688,17 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
         }
 
         {
+            var commandSuffix = extend ? ".Cmd.ManuToWork" : ".Cmd.ManuToHome";
             var configuredCommandTag = block is not null
                 ? FindTagByNameOrNodeId(extend ? block.WorkCommandTagName : block.HomeCommandTagName)
                 : !string.IsNullOrWhiteSpace(extend ? CylinderWorkCommandTagName : CylinderHomeCommandTagName)
                     ? FindTagByNameOrNodeId(extend ? CylinderWorkCommandTagName : CylinderHomeCommandTagName)
                     : null;
-            var importedCommandTag = configuredCommandTag ?? FindImportedCylinderTag(extend ? ".Cmd.ManuToWork" : ".Cmd.ManuToHome");
-            var tag = importedCommandTag ?? Tags.FirstOrDefault(t => t.Name.Equals("Cylinder_Extend", StringComparison.OrdinalIgnoreCase));
+            var importedCommandTag = FindBestImportedCylinderCommandTag(block, commandSuffix);
+            var shouldPreferImported = IsGeneratedCylinderPlaceholder(configuredCommandTag) && importedCommandTag is not null;
+            var tag = shouldPreferImported
+                ? importedCommandTag
+                : configuredCommandTag ?? importedCommandTag ?? Tags.FirstOrDefault(t => t.Name.Equals("Cylinder_Extend", StringComparison.OrdinalIgnoreCase));
             if (tag is null)
             {
                 ShowPopup("操作失败", "未找到气缸输出变量：Cylinder_Extend / Cmd.ManuToHome / Cmd.ManuToWork", "Error");
@@ -2644,7 +2708,9 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
             try
             {
                 var stopwatch = Stopwatch.StartNew();
-                if (importedCommandTag is not null)
+                var isPulseCommand = tag.NodeId.EndsWith(".Cmd.ManuToWork", StringComparison.OrdinalIgnoreCase)
+                    || tag.NodeId.EndsWith(".Cmd.ManuToHome", StringComparison.OrdinalIgnoreCase);
+                if (isPulseCommand)
                 {
                     await _opcUaService.WriteTagAsync(tag, true);
                     tag.CurrentValue = "True";
@@ -2660,6 +2726,26 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
                     SetTagValue("Cylinder_FwdLS", extend ? "True" : "False");
                     SetTagValue("Cylinder_BwdLS", extend ? "False" : "True");
                 }
+                // provide immediate UI feedback: mark command active and status as "动作中"
+                if (block is not null)
+                {
+                    await RunOnUiThreadAsync(() =>
+                    {
+                        if (extend)
+                        {
+                            block.WorkCommandActive = true;
+                            block.StatusText = $"{block.WorkCommandLabel}动作中";
+                        }
+                        else
+                        {
+                            block.HomeCommandActive = true;
+                            block.StatusText = $"{block.HomeCommandLabel}动作中";
+                        }
+                        block.CurrentStateText = ResolveCylinderBlockStateText(block);
+                        block.InterlockHint = ResolveCylinderBlockHintText(block);
+                    });
+                }
+
                 stopwatch.Stop();
                 var configuredDelay = extend ? CylinderWorkDelaySetting : CylinderHomeDelaySetting;
                 var durationText = double.TryParse(configuredDelay, NumberStyles.Float, CultureInfo.InvariantCulture, out var configuredDelayTicks)
@@ -2670,9 +2756,26 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
                 CylinderActionCount += 1;
                 EvaluateTagState(tag);
                 SystemMessage = $"{sourceText}完成";
-                AddLog("气缸控制", $"{sourceText} -> {tag.Name} = {(importedCommandTag is not null ? "Pulse" : extend.ToString())}", "Info");
+                AddLog("气缸控制", $"{sourceText} -> {tag.Name} = {(isPulseCommand ? "Pulse" : extend.ToString())}", "Info");
                 AddAudit("气缸控制", tag.Name, "成功", sourceText);
                 UpdateRuntimeVisuals();
+
+                // schedule a refresh of cylinder states after configured delay to pick up sensor updates
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        var refreshDelayMs = 500;
+                        if (double.TryParse(configuredDelay, NumberStyles.Float, CultureInfo.InvariantCulture, out var configuredDelayTicks))
+                        {
+                            refreshDelayMs = (int)Math.Max(200, configuredDelayTicks * 100);
+                        }
+
+                        await Task.Delay(refreshDelayMs + 200);
+                        await RunOnUiThreadAsync(() => RefreshManualCylinderBlockStates());
+                    }
+                    catch { }
+                });
             }
             catch (Exception ex)
             {
@@ -2759,7 +2862,10 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
             if (!_opcUaService.IsConnected || !AutoRefreshEnabled) return;
             if (UseOpcSubscription)
             {
-                await _opcUaService.SubscribeTagsAsync(Tags, RefreshIntervalMs);
+                var realtimeTags = GetRealtimeSubscriptionTags();
+                // If none matched, fall back to subscribing all tags
+                var subscribeList = realtimeTags.Any() ? realtimeTags : Tags;
+                await _opcUaService.SubscribeTagsAsync(subscribeList, RefreshIntervalMs);
             }
             else
             {
@@ -2786,17 +2892,20 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
         await RefreshSelectedOpcUaNodeAsync();
     }
 
-    private void OpcUaService_TagValueChanged(string tagNameOrNodeId, string value)
+    private async void OpcUaService_TagValueChanged(string tagNameOrNodeId, string value)
     {
-        var tag = FindTagByNodeId(tagNameOrNodeId) ?? FindTagByNameOrNodeId(tagNameOrNodeId);
-        if (tag is null) return;
-        tag.CurrentValue = value;
-        EvaluateTagState(tag);
-        EvaluateEvents(tag);
-        UpdateRuntimeVisuals();
-        RefreshCylinderBindingProperties();
-        RefreshMonitorView();
-        RefreshAlarmStatistics();
+        await RunOnUiThreadAsync(() =>
+        {
+            var tag = FindTagByNodeId(tagNameOrNodeId) ?? FindTagByNameOrNodeId(tagNameOrNodeId);
+            if (tag is null) return;
+            tag.CurrentValue = value;
+            EvaluateTagState(tag);
+            EvaluateEvents(tag);
+            UpdateRuntimeVisuals();
+            RefreshCylinderBindingProperties();
+            RefreshMonitorView();
+            RefreshAlarmStatistics();
+        });
     }
 
     private bool FilterParameterItem(object item)
@@ -3856,6 +3965,37 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
         || value.Contains('[', StringComparison.Ordinal)
         || value.Contains(']', StringComparison.Ordinal);
     private string GetImportedCylinderTagValue(string suffix) => FindImportedCylinderTag(suffix)?.CurrentValue ?? "--";
+
+    private TagItem? FindBestImportedCylinderCommandTag(ManualCylinderBlockItem? block, string suffix)
+    {
+        var blockIndex = block?.CylinderIndex ?? 0;
+        var candidates = Tags.Where(tag => !string.IsNullOrWhiteSpace(tag.NodeId)
+            && tag.NodeId.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)
+            && !IsGeneratedCylinderPlaceholder(tag));
+
+        if (blockIndex > 0)
+        {
+            var exact = candidates.FirstOrDefault(tag => tag.NodeId.Contains($".CylCtrl[{blockIndex}]", StringComparison.OrdinalIgnoreCase));
+            if (exact is not null)
+            {
+                return exact;
+            }
+        }
+
+        return candidates.FirstOrDefault() ?? FindImportedCylinderTag(suffix);
+    }
+
+    private static bool IsGeneratedCylinderPlaceholder(TagItem? tag)
+    {
+        if (tag is null)
+        {
+            return false;
+        }
+
+        return string.Equals(tag.Group, "Imported", StringComparison.OrdinalIgnoreCase)
+            && tag.Description.Contains("自动补齐", StringComparison.OrdinalIgnoreCase);
+    }
+
     private TagItem? FindImportedCylinderTag(string suffix)
     {
         var prefix = ResolveImportedCylinderPrefix();
@@ -4904,15 +5044,103 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
         return int.TryParse(trimmed, out var stepNo) ? stepNo.ToString(CultureInfo.InvariantCulture) : (currentStep + 10).ToString(CultureInfo.InvariantCulture);
     }
 
-    private static int ResolveOperationBaseNumber(string? operationNumber)
+    private int ResolveOperationBaseNumber(string? operationNumber)
     {
         if (string.IsNullOrWhiteSpace(operationNumber))
         {
-            return 1000;
+            return 10 * Math.Max(1, _controlDbMultiplier) + _controlDbOffset;
         }
 
         var digits = new string(operationNumber.Where(char.IsDigit).ToArray());
-        return int.TryParse(digits, out var number) ? number * 100 : 1000;
+        var opNo = int.TryParse(digits, out var number) && number > 0 ? number : 10;
+        return opNo * Math.Max(1, _controlDbMultiplier) + _controlDbOffset;
+    }
+
+    private string? InferOperationNumberFromIoRows(IEnumerable<IoTableRow> rows)
+    {
+        var candidates = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var multiplier = Math.Max(1, _controlDbMultiplier);
+        var controlOffset = _controlDbOffset;
+        var driveOffset = _driveDbOffset;
+
+        foreach (var row in rows)
+        {
+            var fragments = new[]
+            {
+                row.InputModule,
+                row.InputStation,
+                row.InputComment,
+                row.InputRemark,
+                row.OutputModule,
+                row.OutputStation,
+                row.OutputComment,
+                row.OutputRemark
+            };
+
+            foreach (var fragment in fragments.Where(text => !string.IsNullOrWhiteSpace(text)))
+            {
+                foreach (Match match in OperationNumberPattern.Matches(fragment))
+                {
+                    if (!match.Success || match.Groups.Count < 2)
+                    {
+                        continue;
+                    }
+
+                    var digits = match.Groups[1].Value;
+                    if (!int.TryParse(digits, out var opNo) || opNo <= 0)
+                    {
+                        continue;
+                    }
+
+                    var key = $"OP{opNo:00}";
+                    candidates[key] = candidates.TryGetValue(key, out var count) ? count + 1 : 1;
+                }
+
+                foreach (Match match in DbNumberPattern.Matches(fragment))
+                {
+                    if (!match.Success || match.Groups.Count < 2)
+                    {
+                        continue;
+                    }
+
+                    var digits = match.Groups[1].Value;
+                    if (!int.TryParse(digits, out var dbNo) || dbNo <= 0)
+                    {
+                        continue;
+                    }
+
+                    // DB 与 OP 的映射规则（可配置）：
+                    // Control DB: DB = OP * multiplier + controlOffset
+                    // Drive DB:   DB = ControlDB + driveOffset
+                    int opNo = -1;
+                    var candidateByControl = dbNo - controlOffset;
+                    if (candidateByControl >= 0 && candidateByControl % multiplier == 0)
+                    {
+                        opNo = candidateByControl / multiplier;
+                    }
+
+                    var candidateByDrive = dbNo - controlOffset - driveOffset;
+                    if (opNo <= 0 && candidateByDrive >= 0 && candidateByDrive % multiplier == 0)
+                    {
+                        opNo = candidateByDrive / multiplier;
+                    }
+
+                    if (opNo <= 0)
+                    {
+                        continue;
+                    }
+
+                    var key = $"OP{opNo:00}";
+                    candidates[key] = candidates.TryGetValue(key, out var count) ? count + 1 : 1;
+                }
+            }
+        }
+
+        return candidates
+            .OrderByDescending(pair => pair.Value)
+            .ThenBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(pair => pair.Key)
+            .FirstOrDefault();
     }
 
     private static int ResolveStationNo(string? stationText)
@@ -5079,7 +5307,10 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
             IoGeneration = new IoGenerationSettings
             {
                 PlcType = SelectedIoPlcTemplate,
-                OperationNumber = IoOperationNumber
+                OperationNumber = IoOperationNumber,
+                ControlDbMultiplier = _controlDbMultiplier,
+                ControlDbOffset = _controlDbOffset,
+                DriveDbOffset = _driveDbOffset
             },
             IoTableRows = IoTableRows.ToList(),
             ManualCylinderBlocks = ManualCylinderBlocks
@@ -5239,7 +5470,7 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
     private ManualCylinderBlockItem CreateManualCylinderBlock(int index, string displayName)
     {
         var normalizedName = string.IsNullOrWhiteSpace(displayName) ? $"气缸 CY{index:00}" : displayName;
-        var root = $"Application.DB8050_DriveControl.CylCtrl[{index}]";
+        var root = BuildCylinderRootForOperation(index);
         return new ManualCylinderBlockItem
         {
             CylinderIndex = index,
@@ -5252,9 +5483,85 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
             WorkSensorTagName = $"{root}.Status.InWork",
             HomeInterlockTagName = $"{root}.Parm.IC_Home",
             WorkInterlockTagName = $"{root}.Parm.IC_Work",
-            HomeValueTagName = $"{root}.Value_Home",
-            WorkValueTagName = $"{root}.Value_Work"
+            HomeValueTagName = string.Empty,
+            WorkValueTagName = string.Empty
         };
+    }
+
+    private void RebindCylinderDbByOperation()
+    {
+        if (ManualCylinderBlocks.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var block in ManualCylinderBlocks)
+        {
+            var cylinderIndex = ResolveCylinderIndex(block);
+            var root = BuildCylinderRootForOperation(cylinderIndex);
+            block.CylinderIndex = cylinderIndex;
+            block.HomeCommandTagName = $"{root}.Cmd.ManuToHome";
+            block.WorkCommandTagName = $"{root}.Cmd.ManuToWork";
+            block.HomeSensorTagName = $"{root}.Status.InHome";
+            block.WorkSensorTagName = $"{root}.Status.InWork";
+            block.HomeInterlockTagName = $"{root}.Parm.IC_Home";
+            block.WorkInterlockTagName = $"{root}.Parm.IC_Work";
+            block.HomeValueTagName = string.Empty;
+            block.WorkValueTagName = string.Empty;
+            EnsureCylinderTagsForBlock(block);
+        }
+
+        RemoveObsoleteCylinderValueTags();
+
+        if (SelectedCylinderSettingsBlock is not null)
+        {
+            LoadSelectedCylinderParmSettings();
+        }
+
+        RefreshManualCylinderBlockStates();
+        RefreshCylinderBindingProperties();
+    }
+
+    private int ResolveCylinderIndex(ManualCylinderBlockItem block)
+    {
+        if (block.CylinderIndex > 0)
+        {
+            return block.CylinderIndex;
+        }
+
+        var root = ResolveCylinderBlockRoot(block);
+        var match = CylinderRootPattern.Match(root);
+        return match.Success && int.TryParse(match.Groups[1].Value, out var index) && index > 0
+            ? index
+            : 1;
+    }
+
+    private string BuildCylinderRootForOperation(int cylinderIndex)
+    {
+        var index = Math.Max(1, cylinderIndex);
+        var driveDb = ResolveOperationDriveNumber(IoOperationNumber);
+        return $"Application.DB{driveDb}_DriveControl.CylCtrl[{index}]";
+    }
+
+    private int ResolveOperationDriveNumber(string? operationNumber)
+    {
+        var controlDb = ResolveOperationBaseNumber(operationNumber);
+        return controlDb + _driveDbOffset;
+    }
+
+    private void RemoveObsoleteCylinderValueTags()
+    {
+        var obsolete = Tags
+            .Where(tag => !string.IsNullOrWhiteSpace(tag.NodeId)
+                && tag.NodeId.Contains(".CylCtrl[", StringComparison.OrdinalIgnoreCase)
+                && (tag.NodeId.EndsWith(".Value_Home", StringComparison.OrdinalIgnoreCase)
+                    || tag.NodeId.EndsWith(".Value_Work", StringComparison.OrdinalIgnoreCase)))
+            .ToList();
+
+        foreach (var tag in obsolete)
+        {
+            Tags.Remove(tag);
+        }
     }
 
     private string ExtractCylinderDisplayName(string comment)
@@ -5535,16 +5842,13 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
 
     private void EnsureCylinderTagsForBlock(ManualCylinderBlockItem block)
     {
-        EnsurePlaceholderTag(block.HomeCommandTagName, true);
-        EnsurePlaceholderTag(block.WorkCommandTagName, true);
-        EnsurePlaceholderTag(block.HomeSensorTagName, false);
-        EnsurePlaceholderTag(block.WorkSensorTagName, false);
+        // do not auto-create command/sensor placeholders to avoid writing to invalid NodeIds
         EnsurePlaceholderTag(block.HomeInterlockTagName, false);
         EnsurePlaceholderTag(block.WorkInterlockTagName, false);
-        EnsurePlaceholderTag(block.HomeValueTagName, false);
-        EnsurePlaceholderTag(block.WorkValueTagName, false);
         EnsurePlaceholderTag($"{ResolveCylinderBlockRoot(block)}.DevStatus.Valve_Home", false);
         EnsurePlaceholderTag($"{ResolveCylinderBlockRoot(block)}.DevStatus.Valve_Work", false);
+        EnsurePlaceholderTag($"{ResolveCylinderBlockRoot(block)}.Status.Error", false);
+        EnsurePlaceholderTag($"{ResolveCylinderBlockRoot(block)}.Status.ErrorID", false, "UInt16", "0");
         EnsurePlaceholderTag($"{ResolveCylinderBlockRoot(block)}.Parm.DisableHome", true);
         EnsurePlaceholderTag($"{ResolveCylinderBlockRoot(block)}.Parm.DisableWork", true);
         EnsurePlaceholderTag($"{ResolveCylinderBlockRoot(block)}.Parm.Error_Delay", true);
@@ -5552,7 +5856,7 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
         EnsurePlaceholderTag($"{ResolveCylinderBlockRoot(block)}.Parm.Work_Delay", true);
     }
 
-    private void EnsurePlaceholderTag(string nodeId, bool writable)
+    private void EnsurePlaceholderTag(string nodeId, bool writable, string dataType = "Boolean", string currentValue = "False")
     {
         if (FindTagByNameOrNodeId(nodeId) is not null)
         {
@@ -5563,11 +5867,11 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
         {
             Name = nodeId.Replace("Application.", string.Empty, StringComparison.OrdinalIgnoreCase),
             NodeId = nodeId,
-            DataType = "Boolean",
+            DataType = dataType,
             Category = "Cylinder",
             Group = "Imported",
             Direction = writable ? "Output" : "Input",
-            CurrentValue = "False",
+            CurrentValue = currentValue,
             Description = "由 IO 气缸块自动补齐的固定变量路径",
             IsWritable = writable
         });
@@ -5583,16 +5887,12 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
             block.WorkInterlockActive = GetBoolTag(block.WorkInterlockTagName) || !FindTagExists(block.WorkInterlockTagName);
             block.HomeCommandActive = GetCylinderBlockBool(block, ".DevStatus.Valve_Home");
             block.WorkCommandActive = GetCylinderBlockBool(block, ".DevStatus.Valve_Work");
+            block.ErrorActive = GetCylinderBlockBool(block, ".Status.Error");
+            block.ErrorIdText = GetCylinderBlockTagValue(block, ".Status.ErrorID", fallbackValue: "0");
             block.OutputActive = block.WorkCommandActive;
             block.StatusText = block.WorkActive ? block.WorkPositionLabel : block.HomeActive ? block.HomePositionLabel : "切换中";
-            block.CurrentStateText = block.WorkActive && block.HomeActive
-                ? "动作位和初始位感应器都点亮，检查感应器状态"
-                : !block.WorkActive && !block.HomeActive
-                    ? "动作位和初始位感应器都不亮，检查感应器状态"
-                    : block.OutputActive ? "气缸正在前往动作位" : "气缸已在初始位待命";
-            block.InterlockHint = !block.HomeInterlockActive || !block.WorkInterlockActive
-                ? "互锁条件未满足"
-                : "互锁正常";
+            block.CurrentStateText = ResolveCylinderBlockStateText(block);
+            block.InterlockHint = ResolveCylinderBlockHintText(block);
         }
     }
 
@@ -5611,6 +5911,86 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
 
         return false;
     }
+
+    private string GetCylinderBlockTagValue(ManualCylinderBlockItem block, string primarySuffix, string? secondarySuffix = null, string? fallbackValue = "--")
+    {
+        foreach (var candidate in EnumerateCylinderBlockCandidateTags(block, primarySuffix, secondarySuffix))
+        {
+            var tag = FindTagByNodeId(candidate) ?? FindTagByNameOrNodeId(candidate);
+            if (tag is null || string.IsNullOrWhiteSpace(tag.CurrentValue) || string.Equals(tag.CurrentValue, "--", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            return tag.CurrentValue;
+        }
+
+        return fallbackValue ?? "--";
+    }
+
+    private string ResolveCylinderBlockStateText(ManualCylinderBlockItem block)
+    {
+        if (block.ErrorActive)
+        {
+            return ResolveCylinderBlockErrorText(block);
+        }
+
+        if (block.WorkCommandActive && !block.WorkActive)
+        {
+            return $"{block.WorkCommandLabel}动作中";
+        }
+
+        if (block.HomeCommandActive && !block.HomeActive)
+        {
+            return $"{block.HomeCommandLabel}动作中";
+        }
+
+        return "状态正常";
+    }
+
+    private string ResolveCylinderBlockHintText(ManualCylinderBlockItem block)
+    {
+        if (block.ErrorActive)
+        {
+            var errorId = string.IsNullOrWhiteSpace(block.ErrorIdText) ? "0" : block.ErrorIdText;
+            return $"故障代码：{errorId}";
+        }
+
+        if (block.WorkCommandActive && !block.WorkActive)
+        {
+            return $"目标：{block.WorkPositionLabel}";
+        }
+
+        if (block.HomeCommandActive && !block.HomeActive)
+        {
+            return $"目标：{block.HomePositionLabel}";
+        }
+
+        return block.WorkActive
+            ? $"{block.WorkPositionLabel}有效"
+            : block.HomeActive
+                ? $"{block.HomePositionLabel}有效"
+                : "等待反馈";
+    }
+
+    private string ResolveCylinderBlockErrorText(ManualCylinderBlockItem block)
+    {
+        return TryParseCylinderErrorId(block.ErrorIdText) switch
+        {
+            1 => $"{block.HomeCommandLabel}超时，检查{block.WorkPositionLabel}",
+            2 => $"{block.WorkCommandLabel}超时，检查{block.HomePositionLabel}",
+            3 => $"{block.WorkPositionLabel}与{block.HomePositionLabel}同时有效，检查感应器状态",
+            4 => $"{block.WorkPositionLabel}与{block.HomePositionLabel}均无信号，检查感应器状态",
+            5 => $"{block.HomeInterlockLabel}未满足，检查互锁机构状态",
+            6 => $"{block.WorkInterlockLabel}未满足，检查互锁机构状态",
+            7 => "设备手动后气缸未复原，请复原后再切到自动模式",
+            > 0 => $"气缸故障，代码 {block.ErrorIdText}",
+            _ => "气缸故障"
+        };
+    }
+
+    private static int TryParseCylinderErrorId(string? value) =>
+        int.TryParse(value, out var result) ? result : 0;
 
     private static bool HasUsableBooleanValue(TagItem? tag) =>
         tag is not null

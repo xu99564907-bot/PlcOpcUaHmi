@@ -32,8 +32,8 @@ public class IoProgramGenerationService
         Directory.CreateDirectory(outputDirectory);
 
         var dbName = NormalizeOperationNumber(settings.OperationNumber).Replace("OP", "DB", StringComparison.OrdinalIgnoreCase);
-        var controlDb = BuildControlDbName(settings.OperationNumber);
-        var driveDb = BuildDriveDbName(settings.OperationNumber);
+        var controlDb = BuildControlDbName(settings.OperationNumber, settings.ControlDbMultiplier, settings.ControlDbOffset);
+        var driveDb = BuildDriveDbName(settings.OperationNumber, settings.ControlDbMultiplier, settings.ControlDbOffset, settings.DriveDbOffset);
 
         var artifacts = new List<GeneratedProgramArtifact>
         {
@@ -561,16 +561,20 @@ public class IoProgramGenerationService
         return int.TryParse(digits, out var value) && value > 0 ? value : 10;
     }
 
-    private static string BuildControlDbName(string operationNumber)
+    private static string BuildControlDbName(string operationNumber, int controlDbMultiplier, int controlDbOffset)
     {
         var stationNumber = ParseOperationNumber(operationNumber);
-        return $"DB{stationNumber * 100}";
+        var multiplier = Math.Max(1, controlDbMultiplier);
+        return $"DB{stationNumber * multiplier + controlDbOffset}";
     }
 
-    private static string BuildDriveDbName(string operationNumber)
+    private static string BuildDriveDbName(string operationNumber, int controlDbMultiplier, int controlDbOffset, int driveDbOffset)
     {
-        var stationNumber = ParseOperationNumber(operationNumber);
-        return $"DB{stationNumber * 100 + 50}";
+        var controlDb = BuildControlDbName(operationNumber, controlDbMultiplier, controlDbOffset);
+        var controlDbNo = int.TryParse(new string(controlDb.Where(char.IsDigit).ToArray()), out var value)
+            ? value
+            : ParseOperationNumber(operationNumber) * Math.Max(1, controlDbMultiplier) + controlDbOffset;
+        return $"DB{controlDbNo + driveDbOffset}";
     }
 
     private sealed record IoSignal(string Address, string Comment, string Direction);

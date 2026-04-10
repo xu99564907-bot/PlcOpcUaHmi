@@ -78,17 +78,66 @@ public class OpcUaService
             return tags.ToDictionary(t => t.Name, _ => "未连接");
         }
 
-        var result = new Dictionary<string, string>();
-        foreach (var tag in tags)
+        // Batch read: build ReadValueIdCollection to reduce round-trips
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var readIds = new ReadValueIdCollection();
+        var tagList = tags.Where(t => !string.IsNullOrWhiteSpace(t.NodeId)).ToList();
+
+        // Resolve node ids first (cached in ResolveNodeIdAsync)
+        foreach (var tag in tagList)
         {
             try
             {
-                var value = await _session.ReadValueAsync(await ResolveNodeIdAsync(tag.NodeId));
-                result[tag.Name] = value.Value?.ToString() ?? string.Empty;
+                var nodeId = await ResolveNodeIdAsync(tag.NodeId);
+                readIds.Add(new ReadValueId { NodeId = nodeId, AttributeId = Attributes.Value });
             }
-            catch (Exception ex)
+            catch
             {
-                result[tag.Name] = $"ERR: {ex.Message}";
+                // mark unresolved
+                result[tag.Name] = "ERR: UnresolvedNode";
+            }
+        }
+
+        if (readIds.Count == 0)
+        {
+            // nothing resolved, return what we have
+            foreach (var tag in tags)
+            {
+                if (!result.ContainsKey(tag.Name)) result[tag.Name] = string.Empty;
+            }
+            return result;
+        }
+
+        try
+        {
+            // Single batched read
+            var response = await _session.ReadAsync(null, 0, TimestampsToReturn.Neither, readIds, default);
+            for (int i = 0, j = 0; i < tagList.Count; i++)
+            {
+                var tag = tagList[i];
+                if (result.ContainsKey(tag.Name) && result[tag.Name].StartsWith("ERR: UnresolvedNode"))
+                {
+                    continue; // unresolved earlier
+                }
+
+                // map sequentially: some tags may have been unresolved and skipped, so use j index into response.Results
+                var dataValue = response.Results[j++];
+                if (StatusCode.IsBad(dataValue.StatusCode))
+                {
+                    result[tag.Name] = $"ERR: {dataValue.StatusCode}";
+                }
+                else
+                {
+                    result[tag.Name] = dataValue.Value?.ToString() ?? string.Empty;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            // fallback: mark all as error
+            foreach (var tag in tags)
+            {
+                if (!result.ContainsKey(tag.Name)) result[tag.Name] = $"ERR: {ex.Message}";
             }
         }
 
