@@ -154,6 +154,35 @@
                 </Trigger>
             </Style.Triggers>
         </Style>
+        <Style x:Key="CylinderActionButtonBaseStyle" TargetType="Button">
+            <Setter Property="Foreground" Value="#0F172A"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="ActionBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              Margin="{TemplateBinding Padding}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="ActionBorder" Property="Opacity" Value="0.55"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="ActionBorder" Property="Opacity" Value="0.9"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
         <SolidColorBrush x:Key="VsMenuBarBrush" Color="#FFFFFF"/>
         <SolidColorBrush x:Key="VsMenuTextBrush" Color="#334155"/>
         <SolidColorBrush x:Key="VsMenuHoverBrush" Color="#EFF6FF"/>
@@ -1007,7 +1036,7 @@
                                 <TextBlock Text="{Binding CurrentManualTitle}" FontSize="20" FontWeight="Bold" Foreground="#0F172A" Margin="0,0,0,12"/>
                                 <Border Style="{StaticResource CardBorderStyle}" Background="#FFFFFF" Padding="12" Margin="0,0,0,12" Visibility="{Binding IsManualCylinderPageVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
                                     <StackPanel>
-                                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" MinHeight="420">
+                                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" MinHeight="420" PreviewMouseLeftButtonDown="PageScrollViewer_PreviewMouseLeftButtonDown" PreviewGotKeyboardFocus="PageScrollViewer_PreviewGotKeyboardFocus" RequestBringIntoView="PageScrollViewer_RequestBringIntoView">
                                             <ItemsControl ItemsSource="{Binding ManualCylinderBlockCards}">
                                                 <ItemsControl.ItemsPanel>
                                                     <ItemsPanelTemplate>
@@ -1029,32 +1058,48 @@
                                                                         <TextBlock Text="{Binding DisplayName}" FontSize="15" FontWeight="Bold" Foreground="#0F172A"/>
                                                                         <TextBlock Text="{Binding StatusText}" Foreground="#2563EB" Margin="0,3,0,0" FontSize="13" FontWeight="SemiBold"/>
                                                                     </StackPanel>
-                                                                    <Button DockPanel.Dock="Right" Content="参数设定" Click="OpenCylinderSettingsButton_Click" Background="#E2E8F0" Foreground="#0F172A" BorderBrush="#CBD5E1" Padding="10,6"/>
+                                                                    <Button DockPanel.Dock="Right" Content="参数设定" Click="OpenCylinderSettingsButton_Click" Background="#E2E8F0" Foreground="#0F172A" BorderBrush="#CBD5E1" Padding="10,6" Focusable="False"/>
                                                                 </DockPanel>
                                                                 <UniformGrid Grid.Row="1" Columns="2" Margin="0,10,0,8">
-                                                                    <Button Content="原点操作" Command="{Binding DataContext.CylinderMoveToHomeCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" Foreground="#0F172A" Padding="10,8" Margin="0,0,6,0">
+                                                                    <Button Command="{Binding DataContext.CylinderMoveToWorkCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" Foreground="#0F172A" Padding="10,8" Margin="0,0,6,0" Focusable="False">
+                                                                        <Button.Content>
+                                                                            <StackPanel>
+                                                                                <TextBlock Text="{Binding WorkCommandLabel}" HorizontalAlignment="Center" FontWeight="SemiBold"/>
+                                                                                <TextBlock Text="{Binding WorkCommandAddress}" HorizontalAlignment="Center" Foreground="#64748B" FontSize="10" Margin="0,2,0,0"/>
+                                                                            </StackPanel>
+                                                                        </Button.Content>
                                                                         <Button.Style>
-                                                                            <Style TargetType="Button">
-                                                                                <Setter Property="Background" Value="#E6F4EA"/>
-                                                                                <Setter Property="BorderBrush" Value="#A7D7B5"/>
+                                                                            <Style TargetType="Button" BasedOn="{StaticResource CylinderActionButtonBaseStyle}">
+                                                                                <Setter Property="Background" Value="#FFFFFF"/>
+                                                                                <Setter Property="BorderBrush" Value="#CBD5E1"/>
+                                                                                <Setter Property="Foreground" Value="#0F172A"/>
                                                                                 <Style.Triggers>
-                                                                                    <DataTrigger Binding="{Binding HomeCommandActive}" Value="True">
-                                                                                        <Setter Property="Background" Value="#BFE3C8"/>
-                                                                                        <Setter Property="BorderBrush" Value="#6FA882"/>
+                                                                                    <DataTrigger Binding="{Binding WorkCommandActive}" Value="True">
+                                                                                        <Setter Property="Background" Value="#FFF0BF"/>
+                                                                                        <Setter Property="BorderBrush" Value="#D6A12E"/>
+                                                                                        <Setter Property="Foreground" Value="#5C3B00"/>
                                                                                     </DataTrigger>
                                                                                 </Style.Triggers>
                                                                             </Style>
                                                                         </Button.Style>
                                                                     </Button>
-                                                                    <Button Content="动点操作" Command="{Binding DataContext.CylinderMoveToWorkCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" Foreground="#0F172A" Padding="10,8" Margin="6,0,0,0">
+                                                                    <Button Command="{Binding DataContext.CylinderMoveToHomeCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" Foreground="#0F172A" Padding="10,8" Margin="6,0,0,0" Focusable="False">
+                                                                        <Button.Content>
+                                                                            <StackPanel>
+                                                                                <TextBlock Text="{Binding HomeCommandLabel}" HorizontalAlignment="Center" FontWeight="SemiBold"/>
+                                                                                <TextBlock Text="{Binding HomeCommandAddress}" HorizontalAlignment="Center" Foreground="#64748B" FontSize="10" Margin="0,2,0,0"/>
+                                                                            </StackPanel>
+                                                                        </Button.Content>
                                                                         <Button.Style>
-                                                                            <Style TargetType="Button">
-                                                                                <Setter Property="Background" Value="#FFF7DB"/>
-                                                                                <Setter Property="BorderBrush" Value="#E9CD76"/>
+                                                                            <Style TargetType="Button" BasedOn="{StaticResource CylinderActionButtonBaseStyle}">
+                                                                                <Setter Property="Background" Value="#FFFFFF"/>
+                                                                                <Setter Property="BorderBrush" Value="#CBD5E1"/>
+                                                                                <Setter Property="Foreground" Value="#0F172A"/>
                                                                                 <Style.Triggers>
-                                                                                    <DataTrigger Binding="{Binding WorkCommandActive}" Value="True">
-                                                                                        <Setter Property="Background" Value="#FFE9A8"/>
-                                                                                        <Setter Property="BorderBrush" Value="#D0A93A"/>
+                                                                                    <DataTrigger Binding="{Binding HomeCommandActive}" Value="True">
+                                                                                        <Setter Property="Background" Value="#D9F4E1"/>
+                                                                                        <Setter Property="BorderBrush" Value="#63A77A"/>
+                                                                                        <Setter Property="Foreground" Value="#0B3B1F"/>
                                                                                     </DataTrigger>
                                                                                 </Style.Triggers>
                                                                             </Style>
@@ -1064,7 +1109,8 @@
                                                                 <UniformGrid Grid.Row="2" Columns="2" Margin="0,0,0,8">
                                                                     <Border Background="#F8FAFC" BorderBrush="#D7DFEA" BorderThickness="1" CornerRadius="6" Padding="8" Margin="0,0,6,6">
                                                                         <StackPanel>
-                                                                            <TextBlock Text="前到位" Foreground="#64748B" FontSize="11"/>
+                                                                            <TextBlock Text="{Binding WorkPositionLabel}" Foreground="#64748B" FontSize="11"/>
+                                                                            <TextBlock Text="{Binding WorkSensorAddress}" Foreground="#94A3B8" FontSize="10" Margin="0,2,0,0"/>
                                                                             <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
                                                                                 <Ellipse Width="10" Height="10" Margin="0,2,6,0">
                                                                                     <Ellipse.Style>
@@ -1084,7 +1130,8 @@
                                                                     </Border>
                                                                     <Border Background="#F8FAFC" BorderBrush="#D7DFEA" BorderThickness="1" CornerRadius="6" Padding="8" Margin="6,0,0,6">
                                                                         <StackPanel>
-                                                                            <TextBlock Text="后到位" Foreground="#64748B" FontSize="11"/>
+                                                                            <TextBlock Text="{Binding HomePositionLabel}" Foreground="#64748B" FontSize="11"/>
+                                                                            <TextBlock Text="{Binding HomeSensorAddress}" Foreground="#94A3B8" FontSize="10" Margin="0,2,0,0"/>
                                                                             <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
                                                                                 <Ellipse Width="10" Height="10" Margin="0,2,6,0">
                                                                                     <Ellipse.Style>
@@ -1102,31 +1149,11 @@
                                                                             </StackPanel>
                                                                         </StackPanel>
                                                                     </Border>
-                                                                    <Border Background="#F8FAFC" BorderBrush="#D7DFEA" BorderThickness="1" CornerRadius="6" Padding="8" Margin="0,0,6,0">
-                                                                        <StackPanel>
-                                                                            <TextBlock Text="原点互锁" Foreground="#64748B" FontSize="11"/>
-                                                                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
-                                                                                <Ellipse Width="10" Height="10" Margin="0,2,6,0">
-                                                                                    <Ellipse.Style>
-                                                                                        <Style TargetType="Ellipse">
-                                                                                            <Setter Property="Fill" Value="#CBD5E1"/>
-                                                                                            <Style.Triggers>
-                                                                                                <DataTrigger Binding="{Binding HomeInterlockActive}" Value="True">
-                                                                                                    <Setter Property="Fill" Value="#22C55E"/>
-                                                                                                </DataTrigger>
-                                                                                            </Style.Triggers>
-                                                                                        </Style>
-                                                                                    </Ellipse.Style>
-                                                                                </Ellipse>
-                                                                                <TextBlock Text="{Binding HomeInterlockActive, StringFormat={}{0}}" Foreground="#0F172A" FontWeight="Bold"/>
-                                                                            </StackPanel>
-                                                                        </StackPanel>
-                                                                    </Border>
-                                                                    <Border Background="#F8FAFC" BorderBrush="#D7DFEA" BorderThickness="1" CornerRadius="6" Padding="8" Margin="6,0,0,0">
-                                                                        <StackPanel>
-                                                                            <TextBlock Text="动点互锁" Foreground="#64748B" FontSize="11"/>
-                                                                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
-                                                                                <Ellipse Width="10" Height="10" Margin="0,2,6,0">
+                                                                    <Border Background="#F8FAFC" BorderBrush="#D7DFEA" BorderThickness="1" CornerRadius="6" Padding="8,6" Margin="0,0,6,0">
+                                                                        <DockPanel LastChildFill="False">
+                                                                            <TextBlock Text="动点互锁" Foreground="#64748B" FontSize="11" VerticalAlignment="Center"/>
+                                                                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="10,0,0,0" VerticalAlignment="Center">
+                                                                                <Ellipse Width="10" Height="10" Margin="0,1,6,0">
                                                                                     <Ellipse.Style>
                                                                                         <Style TargetType="Ellipse">
                                                                                             <Setter Property="Fill" Value="#CBD5E1"/>
@@ -1138,9 +1165,29 @@
                                                                                         </Style>
                                                                                     </Ellipse.Style>
                                                                                 </Ellipse>
-                                                                                <TextBlock Text="{Binding WorkInterlockActive, StringFormat={}{0}}" Foreground="#0F172A" FontWeight="Bold"/>
+                                                                                <TextBlock Text="{Binding WorkInterlockActive, StringFormat={}{0}}" Foreground="#0F172A" FontWeight="Bold" VerticalAlignment="Center"/>
                                                                             </StackPanel>
-                                                                        </StackPanel>
+                                                                        </DockPanel>
+                                                                    </Border>
+                                                                    <Border Background="#F8FAFC" BorderBrush="#D7DFEA" BorderThickness="1" CornerRadius="6" Padding="8,6" Margin="6,0,0,0">
+                                                                        <DockPanel LastChildFill="False">
+                                                                            <TextBlock Text="原点互锁" Foreground="#64748B" FontSize="11" VerticalAlignment="Center"/>
+                                                                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="10,0,0,0" VerticalAlignment="Center">
+                                                                                <Ellipse Width="10" Height="10" Margin="0,1,6,0">
+                                                                                    <Ellipse.Style>
+                                                                                        <Style TargetType="Ellipse">
+                                                                                            <Setter Property="Fill" Value="#CBD5E1"/>
+                                                                                            <Style.Triggers>
+                                                                                                <DataTrigger Binding="{Binding HomeInterlockActive}" Value="True">
+                                                                                                    <Setter Property="Fill" Value="#22C55E"/>
+                                                                                                </DataTrigger>
+                                                                                            </Style.Triggers>
+                                                                                        </Style>
+                                                                                    </Ellipse.Style>
+                                                                                </Ellipse>
+                                                                                <TextBlock Text="{Binding HomeInterlockActive, StringFormat={}{0}}" Foreground="#0F172A" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                                            </StackPanel>
+                                                                        </DockPanel>
                                                                     </Border>
                                                                 </UniformGrid>
                                                                 <Border Grid.Row="3" Background="#EFF6FF" BorderBrush="#BFDBFE" BorderThickness="1" CornerRadius="6" Padding="8">
@@ -1356,9 +1403,9 @@
                         <Grid Grid.Row="1" Visibility="{Binding IsDesignerCanvasPageVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
                             <Grid.ColumnDefinitions><ColumnDefinition Width="280"/><ColumnDefinition Width="*"/><ColumnDefinition Width="360"/></Grid.ColumnDefinitions>
                             <Border Grid.Column="0" Style="{StaticResource CardBorderStyle}" Padding="10" Margin="0,0,10,0"><DockPanel><StackPanel DockPanel.Dock="Top"><TextBlock Text="页面与工具箱" FontSize="18" FontWeight="Bold" Foreground="#0F172A" Margin="0,0,0,12"/><TextBlock Text="工程名称" Foreground="#475569"/><TextBox Text="{Binding DesignerProjectName, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,8"/><TextBlock Text="当前页面" Foreground="#475569"/><ComboBox ItemsSource="{Binding DesignerPages}" SelectedItem="{Binding SelectedDesignerPage}" Margin="0,4,0,8"/><WrapPanel Margin="0,0,0,8"><Button Content="新建页面" Command="{Binding AddNewPageCommand}" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="10,6" Margin="0,0,6,6"/><Button Content="删除页面" Command="{Binding RemoveCurrentPageCommand}" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="10,6" Margin="0,0,6,6"/><Button Content="加载工程" Command="{Binding LoadDesignerProjectCommand}" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="10,6" Margin="0,0,6,6"/></WrapPanel><TextBlock Text="运行页模板" Foreground="#475569"/><ComboBox ItemsSource="{Binding RuntimeTemplates}" SelectedItem="{Binding SelectedRuntimeTemplate}" Margin="0,4,0,8"/><Button Content="应用模板" Command="{Binding ApplyRuntimeTemplateCommand}" CommandParameter="{Binding SelectedRuntimeTemplate}" Background="#374151" Foreground="White" BorderBrush="#374151" Padding="10,6" Margin="0,0,0,8"/><TextBlock Text="页面名称" Foreground="#475569"/><TextBox Text="{Binding DesignerPageName, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,8"/><TextBlock Text="画布尺寸" Foreground="#475569"/><UniformGrid Columns="2" Margin="0,4,0,8"><TextBox Text="{Binding DesignerCanvasWidth, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,6,0"/><TextBox Text="{Binding DesignerCanvasHeight, UpdateSourceTrigger=PropertyChanged}" Margin="6,0,0,0"/></UniformGrid><TextBlock Text="工具箱" Foreground="#475569" Margin="0,0,0,8"/></StackPanel><ItemsControl ItemsSource="{Binding ToolboxItems}"><ItemsControl.ItemTemplate><DataTemplate><Button Content="{Binding}" Command="{Binding DataContext.AddDesignerElementCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" Margin="0,0,0,8" Padding="10" Background="#F8FAFC" Foreground="#334155" BorderBrush="#D7DFEA" PreviewMouseMove="ToolboxItem_PreviewMouseMove"/></DataTemplate></ItemsControl.ItemTemplate></ItemsControl></DockPanel></Border>
-                            <Border Grid.Column="1" Style="{StaticResource CardBorderStyle}" Padding="10" Margin="0,0,10,0"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions><DockPanel Margin="0,0,0,10"><TextBlock Text="设计画布" FontSize="18" FontWeight="Bold" Foreground="#0F172A"/><TextBlock DockPanel.Dock="Right" Text="仅设计态可编辑" Foreground="#64748B"/></DockPanel><ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"><Canvas x:Name="DesignerCanvas" Width="{Binding DesignerCanvasWidth}" Height="{Binding DesignerCanvasHeight}" Background="#0F172A" ClipToBounds="True" AllowDrop="True" DragOver="DesignerCanvas_DragOver" Drop="DesignerCanvas_Drop"><ItemsControl ItemsSource="{Binding DesignerElements}"><ItemsControl.ItemsPanel><ItemsPanelTemplate><Canvas/></ItemsPanelTemplate></ItemsControl.ItemsPanel><ItemsControl.ItemContainerStyle><Style TargetType="ContentPresenter"><Setter Property="Canvas.Left" Value="{Binding Left}"/><Setter Property="Canvas.Top" Value="{Binding Top}"/></Style></ItemsControl.ItemContainerStyle><ItemsControl.Resources><DataTemplate DataType="{x:Type model:DesignerElement}"><Border Width="{Binding Width}" Height="{Binding Height}" Background="{Binding Background, Converter={StaticResource StringToBrushConverter}}" BorderBrush="{Binding BorderBrush, Converter={StaticResource StringToBrushConverter}}" BorderThickness="2" CornerRadius="8" behavior:DragCanvasBehavior.EnableDrag="True"><Button Command="{Binding DataContext.SelectDesignerElementCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" Background="Transparent" BorderThickness="0" Padding="0"><Grid><StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"><TextBlock Text="{Binding ElementType}" FontSize="10" Foreground="#E2E8F0" HorizontalAlignment="Center"/><TextBlock Text="{Binding Text}" FontSize="{Binding FontSize}" FontWeight="SemiBold" Foreground="{Binding Foreground, Converter={StaticResource StringToBrushConverter}}" HorizontalAlignment="Center" TextWrapping="Wrap"/></StackPanel></Grid></Button></Border></DataTemplate></ItemsControl.Resources></ItemsControl></Canvas></ScrollViewer></Grid></Border>
+                            <Border Grid.Column="1" Style="{StaticResource CardBorderStyle}" Padding="10" Margin="0,0,10,0"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions><DockPanel Margin="0,0,0,10"><TextBlock Text="设计画布" FontSize="18" FontWeight="Bold" Foreground="#0F172A"/><TextBlock DockPanel.Dock="Right" Text="仅设计态可编辑" Foreground="#64748B"/></DockPanel><ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" PreviewMouseLeftButtonDown="PageScrollViewer_PreviewMouseLeftButtonDown" PreviewGotKeyboardFocus="PageScrollViewer_PreviewGotKeyboardFocus" RequestBringIntoView="PageScrollViewer_RequestBringIntoView"><Canvas x:Name="DesignerCanvas" Width="{Binding DesignerCanvasWidth}" Height="{Binding DesignerCanvasHeight}" Background="#0F172A" ClipToBounds="True" AllowDrop="True" DragOver="DesignerCanvas_DragOver" Drop="DesignerCanvas_Drop"><ItemsControl ItemsSource="{Binding DesignerElements}"><ItemsControl.ItemsPanel><ItemsPanelTemplate><Canvas/></ItemsPanelTemplate></ItemsControl.ItemsPanel><ItemsControl.ItemContainerStyle><Style TargetType="ContentPresenter"><Setter Property="Canvas.Left" Value="{Binding Left}"/><Setter Property="Canvas.Top" Value="{Binding Top}"/></Style></ItemsControl.ItemContainerStyle><ItemsControl.Resources><DataTemplate DataType="{x:Type model:DesignerElement}"><Border Width="{Binding Width}" Height="{Binding Height}" Background="{Binding Background, Converter={StaticResource StringToBrushConverter}}" BorderBrush="{Binding BorderBrush, Converter={StaticResource StringToBrushConverter}}" BorderThickness="2" CornerRadius="8" behavior:DragCanvasBehavior.EnableDrag="True"><Button Command="{Binding DataContext.SelectDesignerElementCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" Background="Transparent" BorderThickness="0" Padding="0"><Grid><StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"><TextBlock Text="{Binding ElementType}" FontSize="10" Foreground="#E2E8F0" HorizontalAlignment="Center"/><TextBlock Text="{Binding Text}" FontSize="{Binding FontSize}" FontWeight="SemiBold" Foreground="{Binding Foreground, Converter={StaticResource StringToBrushConverter}}" HorizontalAlignment="Center" TextWrapping="Wrap"/></StackPanel></Grid></Button></Border></DataTemplate></ItemsControl.Resources></ItemsControl></Canvas></ScrollViewer></Grid></Border>
                             <Border Grid.Column="2" Style="{StaticResource CardBorderStyle}" Padding="12">
-                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto" PreviewMouseLeftButtonDown="PageScrollViewer_PreviewMouseLeftButtonDown" PreviewGotKeyboardFocus="PageScrollViewer_PreviewGotKeyboardFocus" RequestBringIntoView="PageScrollViewer_RequestBringIntoView">
                                     <StackPanel>
                                         <TextBlock Text="属性编辑器" FontSize="18" FontWeight="Bold" Foreground="#0F172A" Margin="0,0,0,12"/>
                                         <WrapPanel Margin="0,0,0,10">
@@ -1390,7 +1437,7 @@
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
                             <Border Grid.Column="0" Style="{StaticResource CardBorderStyle}" Padding="16" Margin="0,0,10,0">
-                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto" PreviewMouseLeftButtonDown="PageScrollViewer_PreviewMouseLeftButtonDown" PreviewGotKeyboardFocus="PageScrollViewer_PreviewGotKeyboardFocus" RequestBringIntoView="PageScrollViewer_RequestBringIntoView">
                                     <StackPanel>
                                         <TextBlock Text="手动程序生成" FontSize="20" FontWeight="Bold" Foreground="#0F172A"/>
                                         <TextBlock Text="{Binding IoGenerationHeadline}" Foreground="#2563EB" FontWeight="SemiBold"/>
@@ -1498,7 +1545,7 @@
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
                             <Border Grid.Column="0" Style="{StaticResource CardBorderStyle}" Padding="16" Margin="0,0,10,0">
-                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto" PreviewMouseLeftButtonDown="PageScrollViewer_PreviewMouseLeftButtonDown" PreviewGotKeyboardFocus="PageScrollViewer_PreviewGotKeyboardFocus" RequestBringIntoView="PageScrollViewer_RequestBringIntoView">
                                     <StackPanel>
                                         <TextBlock Text="自动程序生成" FontSize="20" FontWeight="Bold" Foreground="#0F172A"/>
                                         <TextBlock Text="{Binding AutoProgramHeadline}" Foreground="#2563EB" FontWeight="SemiBold"/>
@@ -1545,7 +1592,7 @@
                                             <RowDefinition Height="*"/>
                                         </Grid.RowDefinitions>
                                         <TextBlock Text="流程图绘制" FontSize="18" FontWeight="Bold" Foreground="#0F172A" Margin="0,0,0,10"/>
-                                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
+                                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" PreviewMouseLeftButtonDown="PageScrollViewer_PreviewMouseLeftButtonDown" PreviewGotKeyboardFocus="PageScrollViewer_PreviewGotKeyboardFocus" RequestBringIntoView="PageScrollViewer_RequestBringIntoView">
                                             <ItemsControl ItemsSource="{Binding AutoProgramFlowNodes}">
                                                 <ItemsControl.ItemsPanel>
                                                     <ItemsPanelTemplate>

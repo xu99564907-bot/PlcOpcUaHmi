@@ -1,0 +1,3 @@
+Time,FlowId,FlowName,StepNo,Comment,Result,DurationSeconds
+2026-04-09 12:32:40,F1,主线1,10,工件进入取料位,完成,3.000
+2026-04-09 12:32:46,F1,主线1,20,夹紧缸动作完成,完成,3.000

@@ -251,8 +251,8 @@ public partial class MainWindow : Window
             return;
         }
 
-        var scrollViewer = FindAncestor<ScrollViewer>(source);
-        if (scrollViewer is null || scrollViewer.ScrollableHeight <= 0)
+        var scrollViewer = FindScrollableAncestor(source, e.Delta);
+        if (scrollViewer is null)
         {
             return;
         }
@@ -301,6 +301,27 @@ public partial class MainWindow : Window
             if (current is T match)
             {
                 return match;
+            }
+
+            current = VisualTreeHelper.GetParent(current);
+        }
+
+        return null;
+    }
+
+    private static ScrollViewer? FindScrollableAncestor(DependencyObject? current, int delta)
+    {
+        while (current is not null)
+        {
+            if (current is ScrollViewer scrollViewer && scrollViewer.ScrollableHeight > 0)
+            {
+                var canScrollUp = delta > 0 && scrollViewer.VerticalOffset > 0;
+                var canScrollDown = delta < 0 && scrollViewer.VerticalOffset < scrollViewer.ScrollableHeight;
+
+                if (canScrollUp || canScrollDown)
+                {
+                    return scrollViewer;
+                }
             }
 
             current = VisualTreeHelper.GetParent(current);

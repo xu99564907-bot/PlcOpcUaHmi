@@ -136,6 +136,10 @@
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="120"/>
@@ -168,6 +172,22 @@
                             <TextBlock Grid.Row="6" Text="动点互锁" Foreground="#475569" Margin="0,6,12,0"/>
                             <TextBox Grid.Row="6" Grid.Column="1" Text="{Binding SelectedCylinderWorkInterlockBinding, Mode=OneWay}" IsReadOnly="True" Margin="0,4,12,0"/>
                             <TextBox Grid.Row="6" Grid.Column="2" Text="{Binding SelectedCylinderWorkInterlockValue, Mode=OneWay}" IsReadOnly="True" Margin="0,4,0,0"/>
+
+                            <TextBlock Grid.Row="7" Text="原点显示变量" Foreground="#475569" Margin="0,6,12,0"/>
+                            <TextBox Grid.Row="7" Grid.Column="1" Text="{Binding SelectedCylinderHomeDisplayBinding, Mode=OneWay}" IsReadOnly="True" Margin="0,4,12,0"/>
+                            <TextBox Grid.Row="7" Grid.Column="2" Text="{Binding SelectedCylinderHomeDisplayValue, Mode=OneWay}" IsReadOnly="True" Margin="0,4,0,0"/>
+
+                            <TextBlock Grid.Row="8" Text="动点显示变量" Foreground="#475569" Margin="0,6,12,0"/>
+                            <TextBox Grid.Row="8" Grid.Column="1" Text="{Binding SelectedCylinderWorkDisplayBinding, Mode=OneWay}" IsReadOnly="True" Margin="0,4,12,0"/>
+                            <TextBox Grid.Row="8" Grid.Column="2" Text="{Binding SelectedCylinderWorkDisplayValue, Mode=OneWay}" IsReadOnly="True" Margin="0,4,0,0"/>
+
+                            <TextBlock Grid.Row="9" Text="原点显示回退" Foreground="#475569" Margin="0,6,12,0"/>
+                            <TextBox Grid.Row="9" Grid.Column="1" Text="{Binding SelectedCylinderHomeDisplayFallbackBinding, Mode=OneWay}" IsReadOnly="True" Margin="0,4,12,0"/>
+                            <TextBox Grid.Row="9" Grid.Column="2" Text="{Binding SelectedCylinderHomeDisplayFallbackValue, Mode=OneWay}" IsReadOnly="True" Margin="0,4,0,0"/>
+
+                            <TextBlock Grid.Row="10" Text="动点显示回退" Foreground="#475569" Margin="0,6,12,0"/>
+                            <TextBox Grid.Row="10" Grid.Column="1" Text="{Binding SelectedCylinderWorkDisplayFallbackBinding, Mode=OneWay}" IsReadOnly="True" Margin="0,4,12,0"/>
+                            <TextBox Grid.Row="10" Grid.Column="2" Text="{Binding SelectedCylinderWorkDisplayFallbackValue, Mode=OneWay}" IsReadOnly="True" Margin="0,4,0,0"/>
                         </Grid>
                     </Border>
                 </Grid>

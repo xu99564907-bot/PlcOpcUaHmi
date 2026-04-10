@@ -29,6 +29,7 @@ public partial class MainViewModel : ObservableObject
     private readonly IoTableImportService _ioTableImportService = new();
     private readonly IoProgramGenerationService _ioProgramGenerationService = new();
     private readonly ConfigurationService _configurationService = new();
+    private readonly NamingRulesService _namingRulesService = new();
     private readonly DesignerLayoutService _designerLayoutService = new();
     private readonly DesignerProjectService _designerProjectService = new();
     private readonly ParameterService _parameterService = new();
@@ -39,6 +40,7 @@ public partial class MainViewModel : ObservableObject
     private readonly DispatcherTimer _subscriptionTimer;
     private readonly DispatcherTimer _opcUaBrowserRefreshTimer;
     private readonly Dictionary<string, AlarmRecord> _activeAlarmMap = new(StringComparer.OrdinalIgnoreCase);
+    private NamingRulesConfig _namingRules = NamingRulesConfig.CreateDefault();
     private string _currentIoSourceFilePath = string.Empty;
     private int _currentIoSourceEncodingCodePage = 65001;
     private List<string> _currentIoSourceHeaders = new();
@@ -267,6 +269,7 @@ public partial class MainViewModel : ObservableObject
     {
         try
         {
+            await LoadNamingRulesAsync();
             await LoadConfigAsync();
             await LoadParametersAsync();
             await ConnectAsync();
@@ -331,7 +334,7 @@ public partial class MainViewModel : ObservableObject
     public string CurrentRecipeText => string.IsNullOrWhiteSpace(SelectedRecipeName) ? (GetTagValue("Recipe_Name") == "--" ? "产品A" : GetTagValue("Recipe_Name")) : SelectedRecipeName;
     public string CurrentOrderText => GetTagValue("WorkOrder_No") == "--" ? "WO-20260404-01" : GetTagValue("WorkOrder_No");
     public string MotorStatusText => GetBoolTag("Motor1_Fault") ? "故障" : GetBoolTag("Y_RunLamp") ? "运行" : "停止";
-    public string CylinderStatusText => CylinderForwardActive ? "前到位" : CylinderBackwardActive ? "后到位" : "切换中";
+    public string CylinderStatusText => CylinderForwardActive ? ResolveCurrentCylinderWorkPositionLabel() : CylinderBackwardActive ? ResolveCurrentCylinderHomePositionLabel() : "切换中";
     public string CylinderDisplayName => string.IsNullOrWhiteSpace(CylinderConfiguredName) ? GetImportedCylinderDisplayName() : CylinderConfiguredName;
     public string CylinderHomeMaskButtonText => CylinderHomeMaskEnabled ? "原点屏蔽：开" : "原点屏蔽：关";
     public string CylinderWorkMaskButtonText => CylinderWorkMaskEnabled ? "动点屏蔽：开" : "动点屏蔽：关";
@@ -341,6 +344,10 @@ public partial class MainViewModel : ObservableObject
     public string SelectedCylinderWorkSensorBinding => SelectedCylinderSettingsBlock?.WorkSensorTagName ?? CylinderWorkSensorTagName;
     public string SelectedCylinderHomeInterlockBinding => SelectedCylinderSettingsBlock?.HomeInterlockTagName ?? CylinderHomeInterlockTagName;
     public string SelectedCylinderWorkInterlockBinding => SelectedCylinderSettingsBlock?.WorkInterlockTagName ?? CylinderWorkInterlockTagName;
+    public string SelectedCylinderHomeDisplayBinding => GetSelectedCylinderDisplayTagName("Value_Home");
+    public string SelectedCylinderWorkDisplayBinding => GetSelectedCylinderDisplayTagName("Value_Work");
+    public string SelectedCylinderHomeDisplayFallbackBinding => GetSelectedCylinderDisplayTagName("DevStatus.Valve_Home");
+    public string SelectedCylinderWorkDisplayFallbackBinding => GetSelectedCylinderDisplayTagName("DevStatus.Valve_Work");
     public string SelectedCylinderDisableHomeBinding => GetSelectedCylinderParmTagName("DisableHome");
     public string SelectedCylinderDisableWorkBinding => GetSelectedCylinderParmTagName("DisableWork");
     public string SelectedCylinderErrorDelayBinding => GetSelectedCylinderParmTagName("Error_Delay");
@@ -352,6 +359,10 @@ public partial class MainViewModel : ObservableObject
     public string SelectedCylinderWorkSensorValue => GetTagValue(SelectedCylinderWorkSensorBinding);
     public string SelectedCylinderHomeInterlockValue => GetTagValue(SelectedCylinderHomeInterlockBinding);
     public string SelectedCylinderWorkInterlockValue => GetTagValue(SelectedCylinderWorkInterlockBinding);
+    public string SelectedCylinderHomeDisplayValue => GetTagValue(SelectedCylinderHomeDisplayBinding);
+    public string SelectedCylinderWorkDisplayValue => GetTagValue(SelectedCylinderWorkDisplayBinding);
+    public string SelectedCylinderHomeDisplayFallbackValue => GetTagValue(SelectedCylinderHomeDisplayFallbackBinding);
+    public string SelectedCylinderWorkDisplayFallbackValue => GetTagValue(SelectedCylinderWorkDisplayFallbackBinding);
     public bool CylinderForwardActive => GetCylinderBool(CylinderWorkSensorTagName, ".Status.InWork", ".DevStatus.Sensor_Work", "Cylinder_FwdLS");
     public bool CylinderBackwardActive => GetCylinderBool(CylinderHomeSensorTagName, ".Status.InHome", ".DevStatus.Sensor_Home", "Cylinder_BwdLS");
     public bool CylinderOutputActive => GetCylinderBool(CylinderWorkCommandTagName, ".DevStatus.Valve_Work", ".Cmd.ManuToWork", "Cylinder_Extend");
@@ -668,6 +679,10 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
         OnPropertyChanged(nameof(SelectedCylinderWorkSensorBinding));
         OnPropertyChanged(nameof(SelectedCylinderHomeInterlockBinding));
         OnPropertyChanged(nameof(SelectedCylinderWorkInterlockBinding));
+        OnPropertyChanged(nameof(SelectedCylinderHomeDisplayBinding));
+        OnPropertyChanged(nameof(SelectedCylinderWorkDisplayBinding));
+        OnPropertyChanged(nameof(SelectedCylinderHomeDisplayFallbackBinding));
+        OnPropertyChanged(nameof(SelectedCylinderWorkDisplayFallbackBinding));
         OnPropertyChanged(nameof(SelectedCylinderDisableHomeBinding));
         OnPropertyChanged(nameof(SelectedCylinderDisableWorkBinding));
         OnPropertyChanged(nameof(SelectedCylinderErrorDelayBinding));
@@ -679,6 +694,10 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
         OnPropertyChanged(nameof(SelectedCylinderWorkSensorValue));
         OnPropertyChanged(nameof(SelectedCylinderHomeInterlockValue));
         OnPropertyChanged(nameof(SelectedCylinderWorkInterlockValue));
+        OnPropertyChanged(nameof(SelectedCylinderHomeDisplayValue));
+        OnPropertyChanged(nameof(SelectedCylinderWorkDisplayValue));
+        OnPropertyChanged(nameof(SelectedCylinderHomeDisplayFallbackValue));
+        OnPropertyChanged(nameof(SelectedCylinderWorkDisplayFallbackValue));
     }
 
     private void LoadSelectedCylinderParmSettings()
@@ -707,6 +726,17 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
 
         var root = ResolveCylinderBlockRoot(SelectedCylinderSettingsBlock);
         return string.IsNullOrWhiteSpace(root) ? string.Empty : $"{root}.Parm.{parmFieldName}";
+    }
+
+    private string GetSelectedCylinderDisplayTagName(string fieldName)
+    {
+        if (SelectedCylinderSettingsBlock is null)
+        {
+            return string.Empty;
+        }
+
+        var root = ResolveCylinderBlockRoot(SelectedCylinderSettingsBlock);
+        return string.IsNullOrWhiteSpace(root) ? string.Empty : $"{root}.{fieldName}";
     }
 
     private string GetTagValueOrFallback(string tagNameOrNodeId, string fallback)
@@ -1402,10 +1432,10 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
         await ToggleBoundBooleanTagAsync(tagName, tagName);
     }
 
-    [RelayCommand]
+    [RelayCommand(AllowConcurrentExecutions = true)]
     private async Task CylinderMoveToHomeAsync(ManualCylinderBlockItem? block) => await SetCylinderPositionAsync(block, false, "气缸原点操作");
 
-    [RelayCommand]
+    [RelayCommand(AllowConcurrentExecutions = true)]
     private async Task CylinderMoveToWorkAsync(ManualCylinderBlockItem? block) => await SetCylinderPositionAsync(block, true, "气缸动点操作");
 
     [RelayCommand]
@@ -1691,6 +1721,12 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
     private async Task SaveConfigAsync()
     {
         await PersistConfigAsync(updateStatus: true);
+    }
+
+    private async Task LoadNamingRulesAsync()
+    {
+        var path = Path.Combine(GetProjectRoot(), "config", "naming-rules.json");
+        _namingRules = await _namingRulesService.LoadOrCreateAsync(path);
     }
 
     [RelayCommand]
@@ -2721,7 +2757,7 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
 
     private void OpcUaService_TagValueChanged(string tagNameOrNodeId, string value)
     {
-        var tag = FindTagByNameOrNodeId(tagNameOrNodeId);
+        var tag = FindTagByNodeId(tagNameOrNodeId) ?? FindTagByNameOrNodeId(tagNameOrNodeId);
         if (tag is null) return;
         tag.CurrentValue = value;
         EvaluateTagState(tag);
@@ -3760,9 +3796,34 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
     private double GetDoubleTag(string tagName, double fallback = 0) => double.TryParse(GetTagValue(tagName), out var value) ? value : fallback;
     private string GetTagValue(string tagName) => FindTagByNameOrNodeId(tagName)?.CurrentValue ?? "--";
     private void SetTagValue(string tagName, string value) { var tag = FindTagByNameOrNodeId(tagName); if (tag is not null) tag.CurrentValue = value; }
-    private TagItem? FindTagByNameOrNodeId(string tagNameOrNodeId) =>
-        Tags.FirstOrDefault(t => t.Name.Equals(tagNameOrNodeId, StringComparison.OrdinalIgnoreCase))
-        ?? Tags.FirstOrDefault(t => t.NodeId.Equals(tagNameOrNodeId, StringComparison.OrdinalIgnoreCase));
+    private TagItem? FindTagByNameOrNodeId(string tagNameOrNodeId)
+    {
+        if (string.IsNullOrWhiteSpace(tagNameOrNodeId))
+        {
+            return null;
+        }
+
+        if (LooksLikeNodeIdOrPath(tagNameOrNodeId))
+        {
+            return FindTagByNodeId(tagNameOrNodeId)
+                ?? FindTagByName(tagNameOrNodeId);
+        }
+
+        return FindTagByName(tagNameOrNodeId)
+            ?? FindTagByNodeId(tagNameOrNodeId);
+    }
+
+    private TagItem? FindTagByName(string tagName) =>
+        Tags.FirstOrDefault(t => t.Name.Equals(tagName, StringComparison.OrdinalIgnoreCase));
+
+    private TagItem? FindTagByNodeId(string nodeId) =>
+        Tags.FirstOrDefault(t => t.NodeId.Equals(nodeId, StringComparison.OrdinalIgnoreCase));
+
+    private static bool LooksLikeNodeIdOrPath(string value) =>
+        value.StartsWith("ns=", StringComparison.OrdinalIgnoreCase)
+        || value.Contains('.', StringComparison.Ordinal)
+        || value.Contains('[', StringComparison.Ordinal)
+        || value.Contains(']', StringComparison.Ordinal);
     private string GetImportedCylinderTagValue(string suffix) => FindImportedCylinderTag(suffix)?.CurrentValue ?? "--";
     private TagItem? FindImportedCylinderTag(string suffix)
     {
@@ -4885,6 +4946,15 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
 
     private void ManualCylinderBlockItem_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (sender is ManualCylinderBlockItem block && e.PropertyName == nameof(ManualCylinderBlockItem.DisplayName))
+        {
+            var isVertical = IsVerticalCylinderName(block.DisplayName);
+            if (block.IsVerticalNaming != isVertical)
+            {
+                block.IsVerticalNaming = isVertical;
+            }
+        }
+
         if (e.PropertyName == nameof(ManualCylinderBlockItem.DisplayOrder))
         {
             ManualCylinderBlocksView.Refresh();
@@ -4921,7 +4991,7 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
             if (existingBlocks.TryGetValue(cylinder.CylinderIndex, out var existing))
             {
                 cylinder.DisplayOrder = existing.DisplayOrder;
-                if (!string.IsNullOrWhiteSpace(existing.DisplayName))
+                if (!string.IsNullOrWhiteSpace(existing.DisplayName) && !IsLegacyCylinderPresentation(existing))
                 {
                     cylinder.DisplayName = existing.DisplayName;
                 }
@@ -4981,8 +5051,30 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
 
         if (restoredBlocks.Count > 0)
         {
+            var extractedDefinitions = ExtractCylinderDefinitionsFromIo()
+                .GroupBy(item => item.CylinderIndex)
+                .ToDictionary(group => group.Key, group => group.First());
+
             foreach (var block in restoredBlocks)
             {
+                if (extractedDefinitions.TryGetValue(block.CylinderIndex, out var extracted))
+                {
+                    if (IsLegacyCylinderPresentation(block))
+                    {
+                        block.DisplayName = extracted.DisplayName;
+                    }
+
+                    block.HomeCommandDisplayName = string.IsNullOrWhiteSpace(block.HomeCommandDisplayName) ? extracted.HomeCommandDisplayName : block.HomeCommandDisplayName;
+                    block.WorkCommandDisplayName = string.IsNullOrWhiteSpace(block.WorkCommandDisplayName) ? extracted.WorkCommandDisplayName : block.WorkCommandDisplayName;
+                    block.HomeSensorDisplayName = string.IsNullOrWhiteSpace(block.HomeSensorDisplayName) ? extracted.HomeSensorDisplayName : block.HomeSensorDisplayName;
+                    block.WorkSensorDisplayName = string.IsNullOrWhiteSpace(block.WorkSensorDisplayName) ? extracted.WorkSensorDisplayName : block.WorkSensorDisplayName;
+                    block.HomeCommandAddress = string.IsNullOrWhiteSpace(block.HomeCommandAddress) ? extracted.HomeCommandAddress : block.HomeCommandAddress;
+                    block.WorkCommandAddress = string.IsNullOrWhiteSpace(block.WorkCommandAddress) ? extracted.WorkCommandAddress : block.WorkCommandAddress;
+                    block.HomeSensorAddress = string.IsNullOrWhiteSpace(block.HomeSensorAddress) ? extracted.HomeSensorAddress : block.HomeSensorAddress;
+                    block.WorkSensorAddress = string.IsNullOrWhiteSpace(block.WorkSensorAddress) ? extracted.WorkSensorAddress : block.WorkSensorAddress;
+                }
+
+                block.IsVerticalNaming = IsVerticalCylinderName(block.DisplayName);
                 ManualCylinderBlocks.Add(block);
                 EnsureCylinderTagsForBlock(block);
             }
@@ -5014,24 +5106,45 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
             HomeInterlockTagName = source.HomeInterlockTagName,
             WorkInterlockTagName = source.WorkInterlockTagName,
             HomeValueTagName = source.HomeValueTagName,
-            WorkValueTagName = source.WorkValueTagName
+            WorkValueTagName = source.WorkValueTagName,
+            HomeCommandDisplayName = source.HomeCommandDisplayName,
+            WorkCommandDisplayName = source.WorkCommandDisplayName,
+            HomeSensorDisplayName = source.HomeSensorDisplayName,
+            WorkSensorDisplayName = source.WorkSensorDisplayName,
+            HomeCommandAddress = source.HomeCommandAddress,
+            WorkCommandAddress = source.WorkCommandAddress,
+            HomeSensorAddress = source.HomeSensorAddress,
+            WorkSensorAddress = source.WorkSensorAddress,
+            IsVerticalNaming = source.IsVerticalNaming
         };
     }
+
+    private static bool IsLegacyCylinderPresentation(ManualCylinderBlockItem item) =>
+        string.IsNullOrWhiteSpace(item.HomeCommandDisplayName)
+        && string.IsNullOrWhiteSpace(item.WorkCommandDisplayName)
+        && string.IsNullOrWhiteSpace(item.HomeSensorDisplayName)
+        && string.IsNullOrWhiteSpace(item.WorkSensorDisplayName)
+        && string.IsNullOrWhiteSpace(item.HomeCommandAddress)
+        && string.IsNullOrWhiteSpace(item.WorkCommandAddress)
+        && string.IsNullOrWhiteSpace(item.HomeSensorAddress)
+        && string.IsNullOrWhiteSpace(item.WorkSensorAddress);
 
     private IEnumerable<ManualCylinderBlockItem> ExtractCylinderDefinitionsFromIo()
     {
         var groups = new Dictionary<int, ManualCylinderBlockItem>();
+        var inputRoleMap = new Dictionary<int, Dictionary<string, int>>();
+        var outputRoleMap = new Dictionary<int, Dictionary<string, int>>();
 
         foreach (var row in IoTableRows)
         {
-            CollectCylinderDefinition(groups, row.InputComment);
-            CollectCylinderDefinition(groups, row.OutputComment);
+            CollectCylinderDefinition(groups, row.InputComment, row.InputAddress, true, inputRoleMap);
+            CollectCylinderDefinition(groups, row.OutputComment, row.OutputAddress, false, outputRoleMap);
         }
 
         return groups.Values;
     }
 
-    private void CollectCylinderDefinition(IDictionary<int, ManualCylinderBlockItem> groups, string comment)
+    private void CollectCylinderDefinition(IDictionary<int, ManualCylinderBlockItem> groups, string comment, string address, bool isInput, IDictionary<int, Dictionary<string, int>> roleMap)
     {
         if (string.IsNullOrWhiteSpace(comment))
         {
@@ -5058,10 +5171,16 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
         else if (string.IsNullOrWhiteSpace(block.DisplayName) || block.DisplayName.StartsWith("气缸 ", StringComparison.Ordinal))
         {
             block.DisplayName = ExtractCylinderDisplayName(comment);
+            block.IsVerticalNaming = IsVerticalCylinderName(block.DisplayName);
         }
+
+        var motionLabel = ExtractCylinderMotionLabel(comment);
+        var occurrenceIndex = ResolveCylinderDefinitionOccurrence(index, motionLabel, roleMap);
+
+        ApplyCylinderIoDefinition(block, motionLabel, address, isInput, occurrenceIndex);
     }
 
-    private static ManualCylinderBlockItem CreateManualCylinderBlock(int index, string displayName)
+    private ManualCylinderBlockItem CreateManualCylinderBlock(int index, string displayName)
     {
         var normalizedName = string.IsNullOrWhiteSpace(displayName) ? $"气缸 CY{index:00}" : displayName;
         var root = $"Application.DB8050_DriveControl.CylCtrl[{index}]";
@@ -5070,6 +5189,7 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
             CylinderIndex = index,
             DisplayOrder = index,
             DisplayName = normalizedName,
+            IsVerticalNaming = IsVerticalCylinderName(normalizedName),
             HomeCommandTagName = $"{root}.Cmd.ManuToHome",
             WorkCommandTagName = $"{root}.Cmd.ManuToWork",
             HomeSensorTagName = $"{root}.Status.InHome",
@@ -5081,11 +5201,242 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
         };
     }
 
-    private static string ExtractCylinderDisplayName(string comment)
+    private string ExtractCylinderDisplayName(string comment)
     {
         var text = (comment ?? string.Empty).Trim();
-        var underscoreIndex = text.LastIndexOf('_');
-        return underscoreIndex > 0 ? text[..underscoreIndex] : text;
+        var separatorIndex = FindLastConfiguredSeparatorIndex(text);
+        var displayName = separatorIndex > 0 ? text[..separatorIndex] : text;
+        return NormalizeGroupedCylinderSuffix(displayName);
+    }
+
+    private string ExtractCylinderMotionLabel(string comment)
+    {
+        var text = (comment ?? string.Empty).Trim();
+        var separatorIndex = FindLastConfiguredSeparatorIndex(text);
+        if (separatorIndex >= 0 && separatorIndex < text.Length - 1)
+        {
+            var separator = GetMatchedSeparator(text, separatorIndex);
+            return text[(separatorIndex + separator.Length)..].Trim();
+        }
+
+        var match = Regex.Match(text, "(CY\\d{1,3})(.+)$", RegexOptions.IgnoreCase);
+        return match.Success ? match.Groups[2].Value.Trim('_', ' ', '-') : text;
+    }
+
+    private void ApplyCylinderIoDefinition(ManualCylinderBlockItem block, string motionLabel, string address, bool isInput, int occurrenceIndex)
+    {
+        var role = ResolveCylinderMotionRole(motionLabel, occurrenceIndex);
+
+        if (isInput)
+        {
+            AssignCylinderSensorDefinition(block, role, motionLabel, address);
+            return;
+        }
+
+        AssignCylinderCommandDefinition(block, role, motionLabel, address);
+    }
+
+    private static void AssignCylinderSensorDefinition(ManualCylinderBlockItem block, CylinderMotionRole role, string label, string address)
+    {
+        if (role == CylinderMotionRole.Work || (role == CylinderMotionRole.Unknown && string.IsNullOrWhiteSpace(block.WorkSensorDisplayName)))
+        {
+            if (string.IsNullOrWhiteSpace(block.WorkSensorDisplayName))
+            {
+                block.WorkSensorDisplayName = label;
+            }
+
+            block.WorkSensorAddress = AppendAddress(block.WorkSensorAddress, address);
+            return;
+        }
+
+        if (role == CylinderMotionRole.Home || (role == CylinderMotionRole.Unknown && string.IsNullOrWhiteSpace(block.HomeSensorDisplayName)))
+        {
+            if (string.IsNullOrWhiteSpace(block.HomeSensorDisplayName))
+            {
+                block.HomeSensorDisplayName = label;
+            }
+
+            block.HomeSensorAddress = AppendAddress(block.HomeSensorAddress, address);
+        }
+    }
+
+    private static void AssignCylinderCommandDefinition(ManualCylinderBlockItem block, CylinderMotionRole role, string label, string address)
+    {
+        if (role == CylinderMotionRole.Work || (role == CylinderMotionRole.Unknown && string.IsNullOrWhiteSpace(block.WorkCommandDisplayName)))
+        {
+            if (string.IsNullOrWhiteSpace(block.WorkCommandDisplayName))
+            {
+                block.WorkCommandDisplayName = label;
+            }
+
+            block.WorkCommandAddress = AppendAddress(block.WorkCommandAddress, address);
+            return;
+        }
+
+        if (role == CylinderMotionRole.Home || (role == CylinderMotionRole.Unknown && string.IsNullOrWhiteSpace(block.HomeCommandDisplayName)))
+        {
+            if (string.IsNullOrWhiteSpace(block.HomeCommandDisplayName))
+            {
+                block.HomeCommandDisplayName = label;
+            }
+
+            block.HomeCommandAddress = AppendAddress(block.HomeCommandAddress, address);
+        }
+    }
+
+    private int ResolveCylinderDefinitionOccurrence(int cylinderIndex, string motionLabel, IDictionary<int, Dictionary<string, int>> roleMap)
+    {
+        if (!roleMap.TryGetValue(cylinderIndex, out var labelMap))
+        {
+            labelMap = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            roleMap[cylinderIndex] = labelMap;
+        }
+
+        var key = string.IsNullOrWhiteSpace(motionLabel) ? "__EMPTY__" : motionLabel.Trim();
+        if (!labelMap.TryGetValue(key, out var occurrenceIndex))
+        {
+            occurrenceIndex = labelMap.Count + 1;
+            labelMap[key] = occurrenceIndex;
+        }
+
+        return occurrenceIndex;
+    }
+
+    private string NormalizeGroupedCylinderSuffix(string displayName)
+    {
+        if (string.IsNullOrWhiteSpace(displayName))
+        {
+            return displayName;
+        }
+
+        foreach (var suffix in _namingRules.Cylinder.GroupedSuffixes.Where(value => !string.IsNullOrWhiteSpace(value)))
+        {
+            displayName = Regex.Replace(
+                displayName,
+                $"(CY\\d{{1,3}}){Regex.Escape(suffix)}$",
+                "$1",
+                RegexOptions.IgnoreCase);
+        }
+
+        return displayName;
+    }
+
+    private static string AppendAddress(string current, string address)
+    {
+        if (string.IsNullOrWhiteSpace(address))
+        {
+            return current;
+        }
+
+        if (string.IsNullOrWhiteSpace(current))
+        {
+            return address;
+        }
+
+        var parts = current.Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return parts.Contains(address, StringComparer.OrdinalIgnoreCase)
+            ? current
+            : $"{current}/{address}";
+    }
+
+    private CylinderMotionRole ResolveCylinderMotionRole(string label, int occurrenceIndex)
+    {
+        var occurrenceRole = ResolveCylinderMotionRoleByOccurrence(occurrenceIndex);
+        if (occurrenceRole != CylinderMotionRole.Unknown)
+        {
+            return occurrenceRole;
+        }
+
+        if (string.IsNullOrWhiteSpace(label))
+        {
+            return CylinderMotionRole.Unknown;
+        }
+
+        var normalized = label.Trim();
+        var homeKeywords = _namingRules.Cylinder.HomeKeywords;
+        if (homeKeywords.Any(normalized.Contains))
+        {
+            return CylinderMotionRole.Home;
+        }
+
+        var workKeywords = _namingRules.Cylinder.WorkKeywords;
+
+        if (workKeywords.Any(normalized.Contains))
+        {
+            return CylinderMotionRole.Work;
+        }
+
+        return CylinderMotionRole.Unknown;
+    }
+
+    private CylinderMotionRole ResolveCylinderMotionRoleByOccurrence(int occurrenceIndex)
+    {
+        if (!_namingRules.Cylinder.MotionAssignmentMode.Equals("ByRowOrder", StringComparison.OrdinalIgnoreCase))
+        {
+            return CylinderMotionRole.Unknown;
+        }
+
+        return occurrenceIndex switch
+        {
+            1 => ParseConfiguredCylinderRole(_namingRules.Cylinder.FirstOccurrenceRole),
+            2 => ParseConfiguredCylinderRole(_namingRules.Cylinder.SecondOccurrenceRole),
+            _ => CylinderMotionRole.Unknown
+        };
+    }
+
+    private static CylinderMotionRole ParseConfiguredCylinderRole(string? value) =>
+        value?.Trim().ToLowerInvariant() switch
+        {
+            "work" => CylinderMotionRole.Work,
+            "home" => CylinderMotionRole.Home,
+            _ => CylinderMotionRole.Unknown
+        };
+
+    private enum CylinderMotionRole
+    {
+        Unknown,
+        Home,
+        Work
+    }
+
+    private string ResolveCurrentCylinderWorkPositionLabel() =>
+        IsVerticalCylinderName(CylinderDisplayName) ? "上升到位" : "伸出到位";
+
+    private string ResolveCurrentCylinderHomePositionLabel() =>
+        IsVerticalCylinderName(CylinderDisplayName) ? "下降到位" : "缩回到位";
+
+    private bool IsVerticalCylinderName(string? name) =>
+        !string.IsNullOrWhiteSpace(name)
+        && _namingRules.Cylinder.VerticalKeywords.Any(keyword => name.Contains(keyword, StringComparison.OrdinalIgnoreCase));
+
+    private int FindLastConfiguredSeparatorIndex(string text)
+    {
+        var bestIndex = -1;
+        foreach (var separator in _namingRules.Cylinder.SegmentSeparators.Where(value => !string.IsNullOrWhiteSpace(value)))
+        {
+            var index = text.LastIndexOf(separator, StringComparison.Ordinal);
+            if (index > bestIndex)
+            {
+                bestIndex = index;
+            }
+        }
+
+        return bestIndex;
+    }
+
+    private string GetMatchedSeparator(string text, int separatorIndex)
+    {
+        foreach (var separator in _namingRules.Cylinder.SegmentSeparators.Where(value => !string.IsNullOrWhiteSpace(value)))
+        {
+            if (separatorIndex >= 0
+                && separatorIndex + separator.Length <= text.Length
+                && string.Equals(text.Substring(separatorIndex, separator.Length), separator, StringComparison.Ordinal))
+            {
+                return separator;
+            }
+        }
+
+        return "_";
     }
 
     private void EnsureCylinderTagsForBlock(ManualCylinderBlockItem block)
@@ -5098,6 +5449,8 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
         EnsurePlaceholderTag(block.WorkInterlockTagName, false);
         EnsurePlaceholderTag(block.HomeValueTagName, false);
         EnsurePlaceholderTag(block.WorkValueTagName, false);
+        EnsurePlaceholderTag($"{ResolveCylinderBlockRoot(block)}.DevStatus.Valve_Home", false);
+        EnsurePlaceholderTag($"{ResolveCylinderBlockRoot(block)}.DevStatus.Valve_Work", false);
         EnsurePlaceholderTag($"{ResolveCylinderBlockRoot(block)}.Parm.DisableHome", true);
         EnsurePlaceholderTag($"{ResolveCylinderBlockRoot(block)}.Parm.DisableWork", true);
         EnsurePlaceholderTag($"{ResolveCylinderBlockRoot(block)}.Parm.Error_Delay", true);
@@ -5134,10 +5487,10 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
             block.WorkActive = GetBoolTag(block.WorkSensorTagName);
             block.HomeInterlockActive = GetBoolTag(block.HomeInterlockTagName) || !FindTagExists(block.HomeInterlockTagName);
             block.WorkInterlockActive = GetBoolTag(block.WorkInterlockTagName) || !FindTagExists(block.WorkInterlockTagName);
-            block.HomeCommandActive = GetBoolTag(block.HomeValueTagName);
-            block.WorkCommandActive = GetBoolTag(block.WorkValueTagName);
+            block.HomeCommandActive = GetCylinderBlockBool(block, ".DevStatus.Valve_Home");
+            block.WorkCommandActive = GetCylinderBlockBool(block, ".DevStatus.Valve_Work");
             block.OutputActive = block.WorkCommandActive;
-            block.StatusText = block.WorkActive ? "前到位" : block.HomeActive ? "后到位" : "切换中";
+            block.StatusText = block.WorkActive ? block.WorkPositionLabel : block.HomeActive ? block.HomePositionLabel : "切换中";
             block.CurrentStateText = block.WorkActive && block.HomeActive
                 ? "动作位和初始位感应器都点亮，检查感应器状态"
                 : !block.WorkActive && !block.HomeActive
@@ -5155,15 +5508,21 @@ public bool IsDesignerAutoProgramPageVisible => string.Equals(CurrentDesignerSub
     {
         foreach (var candidate in EnumerateCylinderBlockCandidateTags(block, primarySuffix, secondarySuffix, fallbackTagName))
         {
-            var tag = FindTagByNameOrNodeId(candidate);
-            if (tag is not null)
+            var tag = FindTagByNodeId(candidate) ?? FindTagByNameOrNodeId(candidate);
+            if (HasUsableBooleanValue(tag))
             {
-                return string.Equals(tag.CurrentValue, "True", StringComparison.OrdinalIgnoreCase);
+                return string.Equals(tag!.CurrentValue, "True", StringComparison.OrdinalIgnoreCase);
             }
         }
 
         return false;
     }
+
+    private static bool HasUsableBooleanValue(TagItem? tag) =>
+        tag is not null
+        && !string.IsNullOrWhiteSpace(tag.CurrentValue)
+        && !string.Equals(tag.CurrentValue, "--", StringComparison.Ordinal)
+        && !tag.CurrentValue.StartsWith("ERR:", StringComparison.OrdinalIgnoreCase);
 
     private IEnumerable<string> EnumerateCylinderBlockCandidateTags(ManualCylinderBlockItem block, string primarySuffix, string? secondarySuffix = null, string? fallbackTagName = null)
     {
